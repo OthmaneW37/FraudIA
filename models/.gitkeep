@@ -1,0 +1,5 @@
+# Modèles entraînés sauvegardés ici (ignoré par git)
+# - preprocessor.joblib
+# - logistic_regression.joblib
+# - random_forest.joblib
+# - xgboost.joblib

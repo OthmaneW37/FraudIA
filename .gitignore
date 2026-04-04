@@ -1,0 +1,53 @@
+# .gitignore — Projet Détection de Fraude
+# ============================================================
+
+# Données (trop lourdes pour git)
+data/raw/
+data/processed/
+*.csv
+*.parquet
+*.feather
+
+# Modèles sauvegardés
+models/*.pkl
+models/*.joblib
+models/*.pt
+models/*.pth
+
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Environnements virtuels
+venv/
+env/
+.venv/
+.conda/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb~
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/

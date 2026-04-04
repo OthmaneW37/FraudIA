@@ -1,0 +1,7 @@
+# Notebooks Jupyter — Projet Détection de Fraude
+# 
+# Exécuter dans l'ordre :
+# 00_EDA.ipynb           → Exploration du dataset
+# 01_baseline_models.ipynb → LR, RF, XGBoost
+# 02_advanced_models.ipynb → Isolation Forest, Autoencoder
+# 03_xai_agent.ipynb      → SHAP + Agent LLM
