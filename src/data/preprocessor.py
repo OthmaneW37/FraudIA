@@ -100,6 +100,25 @@ class FraudPreprocessor:
         )
         return preprocessor
 
+    def _apply_feature_engineering(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Ajoute des features calculées pour aider le modèle à mieux séparer la fraude."""
+        df = df.copy()
+        
+        # 1. Ratio Montant / Moyenne (Très puissant pour la fraude)
+        # Si avg_amount_30d n'existe pas, on met 1.0 (on ne peut pas diviser par 0)
+        avg = df.get("avg_amount_30d", df.get("transaction_amount", 1.0)).fillna(df["transaction_amount"])
+        df["amount_ratio"] = df["transaction_amount"] / (avg + 1e-9)
+        
+        # 2. Heure cyclique (23h est proche de 00h)
+        if "hour" in df.columns:
+            df["hour_sin"] = np.sin(2 * np.pi * df["hour"] / 24)
+            df["hour_cos"] = np.cos(2 * np.pi * df["hour"] / 24)
+            
+        # 3. Log du montant (réduit l'impact des outliers)
+        df["log_amount"] = np.log1p(df["transaction_amount"])
+        
+        return df
+
     # ── API publique ─────────────────────────────────────────────────────────
 
     def fit_transform_train(
@@ -109,18 +128,15 @@ class FraudPreprocessor:
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Fit le preprocessor sur le TRAIN uniquement, puis applique SMOTE.
-
-        IMPORTANT : Cette méthode entraîne le pipeline. Ne jamais appeler
-        sur val/test sinon → data leakage.
-
-        Returns
-        -------
-        X_resampled, y_resampled : arrays numpy après SMOTE
         """
+        # Feature Engineering
+        X_train = self._apply_feature_engineering(X_train)
+
         if not self.numerical_features and not self.categorical_features:
             # Auto-détection des colonnes si non spécifiées
-            self.numerical_features, self.categorical_features = \
-                self._auto_detect_columns(X_train)
+            num, cat = self._auto_detect_columns(X_train)
+            self.numerical_features = num
+            self.categorical_features = cat
             logger.info(f"Features numériques  : {self.numerical_features}")
             logger.info(f"Features catégorielles: {self.categorical_features}")
 
@@ -168,6 +184,8 @@ class FraudPreprocessor:
             raise RuntimeError(
                 "Appeler fit_transform_train() avant transform()."
             )
+        # Feature Engineering
+        X = self._apply_feature_engineering(X)
         return self._preprocessor.transform(X)
 
     # ── Sauvegarde / chargement ──────────────────────────────────────────────

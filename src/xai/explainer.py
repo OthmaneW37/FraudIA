@@ -120,11 +120,23 @@ class FraudExplainer:
 
         # Pour les classificateurs binaires, shap_values peut être une liste [class0, class1]
         if isinstance(shap_values, list):
-            shap_values = shap_values[1]   # classe 1 = fraude
+            # RandomForest scikit-learn avec TreeExplainer retourne souvent [prob_class0, prob_class1]
+            shap_values = shap_values[1]
+
+        # S'assurer qu'on a un tableau 2D (n_samples, n_features)
+        if hasattr(shap_values, "ndim") and shap_values.ndim == 3:
+            # Cas rare où on a (samples, features, classes)
+            shap_values = shap_values[:, :, 1]
 
         shap_array = shap_values[0]  # Première (seule) ligne
+        
+        # Si shap_array est encore un tableau/liste (cas multi-output persistant), on prend le dernier niveau
+        if hasattr(shap_array, "__len__") and not isinstance(shap_array, (str, bytes)):
+            if len(shap_array.shape) > 0 and shap_array.shape[-1] == 2:
+                 # C'est probablement encore [contrib_class0, contrib_class1]
+                 shap_array = shap_array[:, 1] if len(shap_array.shape) > 1 else shap_array[1]
 
-        return dict(zip(self.feature_names, shap_array.tolist()))
+        return dict(zip(self.feature_names, np.array(shap_array).flatten().tolist()))
 
     # ── Top features ─────────────────────────────────────────────────────────
 

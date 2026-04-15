@@ -49,7 +49,7 @@ async def explain_fraud(
     start = time.perf_counter()
 
     try:
-        result = service.predict_and_explain(transaction.model_dump())
+        result = service.predict_and_explain(transaction.model_dump(), model_name=transaction.selected_model)
     except Exception as e:
         logger.error(f"Erreur explication [{transaction.transaction_id}]: {e}")
         raise HTTPException(

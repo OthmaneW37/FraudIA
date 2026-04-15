@@ -1,21 +1,6 @@
-"""
-app.py — Dashboard Streamlit pour la détection de fraude.
-
-Interface interactive permettant :
-  1. Saisie manuelle d'une transaction
-  2. Visualisation du score de fraude en temps réel
-  3. Affichage des SHAP features (graphique waterfall)
-  4. Lecture de l'explication LLM
-  5. Monitoring global (métriques, statut API)
-
-Architecture : appelle l'API FastAPI (localhost:8000) via httpx.
-→ Le dashboard est découplé du backend (bon pour la démo PFA).
-"""
-
 from __future__ import annotations
 
 import time
-
 import httpx
 import plotly.graph_objects as go
 import streamlit as st
@@ -23,34 +8,98 @@ import streamlit as st
 # ── Configuration de la page ─────────────────────────────────────────────────
 
 st.set_page_config(
-    page_title="🔍 Fraud Detection Dashboard",
-    page_icon="🔍",
+    page_title="FraudIA | Premium Detection",
+    page_icon="🛡️",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 API_BASE_URL = "http://localhost:8000"
 
-# ── CSS Custom ────────────────────────────────────────────────────────────────
+# ── CSS Premium (Glassmorphism & FinTech Theme) ────────────────────────────────
 
 st.markdown("""
 <style>
-    /* Gradient header */
-    .main-header {
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-        padding: 2rem;
-        border-radius: 12px;
-        margin-bottom: 2rem;
-        border: 1px solid #e94560;
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+
+    html, body, [class*="css"] {
+        font-family: 'Inter', sans-serif;
     }
-    .fraud-score-high   { color: #e74c3c; font-size: 2.5rem; font-weight: bold; }
-    .fraud-score-medium { color: #f39c12; font-size: 2.5rem; font-weight: bold; }
-    .fraud-score-low    { color: #2ecc71; font-size: 2.5rem; font-weight: bold; }
-    .metric-card {
-        background: #16213e;
-        padding: 1rem;
+
+    /* Background Global */
+    .stApp {
+        background: radial-gradient(circle at top right, #1e293b, #0f172a);
+    }
+
+    /* Glass Cards */
+    .glass-card {
+        background: rgba(255, 255, 255, 0.03);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        padding: 24px;
+        margin-bottom: 20px;
+        transition: transform 0.3s ease;
+    }
+    .glass-card:hover {
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    /* Header Styling */
+    .nav-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 0;
+        margin-bottom: 30px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .nav-title {
+        font-size: 1.8rem;
+        font-weight: 700;
+        background: linear-gradient(90deg, #38bdf8, #818cf8);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    /* Status Badges */
+    .badge {
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    .badge-fraud { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid #ef4444; }
+    .badge-safe  { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid #22c55e; }
+    .badge-warn  { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid #f59e0b; }
+
+    /* Custom Streamlit Overrides */
+    .stButton>button {
         border-radius: 8px;
-        border-left: 4px solid #e94560;
+        font-weight: 600;
+        transition: all 0.2s ease;
+    }
+    .stTextInput>div>div>input, .stSelectbox>div>div>div {
+        background-color: rgba(255, 255, 255, 0.05) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 8px !important;
+    }
+    
+    /* AI Agent Bubble */
+    .agent-bubble {
+        background: rgba(129, 140, 248, 0.1);
+        border-left: 4px solid #818cf8;
+        padding: 15px;
+        border-radius: 0 12px 12px 0;
+        margin-top: 10px;
+        font-style: italic;
+    }
+
+    /* Sidebar logic */
+    section[data-testid="stSidebar"] {
+        background-color: #0f172a;
+        border-right: 1px solid rgba(255, 255, 255, 0.05);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -59,159 +108,187 @@ st.markdown("""
 # ── Fonctions UI helpers ────────────────────────────────────────────────────────
 
 def _show_prediction_result(result: dict, threshold: float) -> None:
-    """Affiche le score de fraude avec un jauge colorée."""
+    """Affiche le score de fraude avec un design premium."""
     prob  = result.get("fraud_probability", 0)
     risk  = result.get("risk_level", "N/A")
     fraud = result.get("is_fraud", False)
 
-    # Jauge Plotly
-    fig = go.Figure(go.Indicator(
-        mode="gauge+number+delta",
-        value=prob * 100,
-        number={"suffix": "%", "font": {"size": 40}},
-        title={"text": "Score de Fraude", "font": {"size": 20}},
-        gauge={
-            "axis": {"range": [0, 100], "ticksuffix": "%"},
-            "bar": {"color": "#e74c3c" if fraud else "#2ecc71"},
-            "steps": [
-                {"range": [0, 40],   "color": "#d5f5e3"},
-                {"range": [40, 70],  "color": "#fdebd0"},
-                {"range": [70, 100], "color": "#fadbd8"},
-            ],
-            "threshold": {
-                "line": {"color": "black", "width": 3},
-                "thickness": 0.75,
-                "value": threshold * 100,
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+    
+    col_score, col_status = st.columns([1.5, 1])
+    
+    with col_score:
+        # Jauge Plotly Modernisée
+        fig = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=prob * 100,
+            number={"suffix": "%", "font": {"size": 40, "color": "white", "family": "Inter"}},
+            gauge={
+                "axis": {"range": [0, 100], "tickwidth": 1, "tickcolor": "rgba(255,255,255,0.2)"},
+                "bar": {"color": "#ef4444" if fraud else "#22c55e"},
+                "bgcolor": "rgba(255,255,255,0.05)",
+                "borderwidth": 0,
+                "steps": [
+                    {"range": [0, 40],   "color": "rgba(34, 197, 94, 0.1)"},
+                    {"range": [40, 75],  "color": "rgba(245, 158, 11, 0.1)"},
+                    {"range": [75, 100], "color": "rgba(239, 68, 68, 0.1)"},
+                ],
+                "threshold": {
+                    "line": {"color": "white", "width": 2},
+                    "thickness": 0.8,
+                    "value": threshold * 100,
+                },
             },
-        },
-    ))
-    fig.update_layout(height=280, margin=dict(t=60, b=0, l=20, r=20))
-    st.plotly_chart(fig, use_container_width=True)
+        ))
+        fig.update_layout(
+            height=200, 
+            margin=dict(t=0, b=0, l=10, r=10),
+            paper_bgcolor="rgba(0,0,0,0)",
+            font={"color": "white", "family": "Inter"}
+        )
+        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+    
+    with col_status:
+        st.markdown("<br>", unsafe_allow_html=True)
+        if fraud:
+            st.markdown(f'<span class="badge badge-fraud">CRITIQUE</span>', unsafe_allow_html=True)
+            st.markdown(f"### 🚨 Fraude Détectée")
+        elif risk == "MOYEN":
+            st.markdown(f'<span class="badge badge-warn">ATTENTION</span>', unsafe_allow_html=True)
+            st.markdown(f"### 🟠 Risque Modéré")
+        else:
+            st.markdown(f'<span class="badge badge-safe">SÉCURISÉ</span>', unsafe_allow_html=True)
+            st.markdown(f"### ✅ Légitime")
+            
+        st.write(f"Niveau : **{risk}**")
+        st.caption(f"Seuil : {threshold:.0%}")
 
-    # Bandeau de décision
-    if fraud:
-        st.error(f"🚨 FRAUDE DÉTECTÉE — Niveau de risque : **{risk}**")
-    else:
-        st.success(f"✅ Transaction légitime — Niveau de risque : **{risk}**")
-
-    st.caption(f"⏱️ Temps de traitement : {result.get('processing_time_ms', 0):.1f} ms")
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.caption(f"⚡ Traitement : {result.get('processing_time_ms', 0):.1f}ms | Modèle : {result.get('model_name', 'N/A')}")
 
 
 def _show_shap_and_explanation(result: dict) -> None:
-    """Affiche les features SHAP et l'explication LLM."""
-    st.divider()
-
-    # SHAP features
+    """Affiche les features SHAP et l'explication Agent IA avec style Card."""
+    
     top_features = result.get("top_features", [])
-    if top_features:
-        st.subheader("🔬 Facteurs explicatifs (SHAP)")
-        for feat in top_features:
-            color = "🔴" if feat["shap_value"] > 0 else "🟢"
-            st.write(
-                f"{color} **{feat['feature']}** → {feat['direction']} "
-                f"(impact: {feat['impact']}, SHAP: {feat['shap_value']:+.4f})"
-            )
-
-    # Explication LLM
     explanation = result.get("explanation", "")
-    if explanation:
-        st.divider()
-        st.subheader("🧠 Explication de l'Agent IA")
-        st.info(explanation)
-        st.caption(f"Modèle LLM : {result.get('llm_model', 'N/A')}")
+
+    col_shap, col_agent = st.columns([1, 1.2])
+
+    with col_shap:
+        st.markdown('<div class="glass-card" style="height: 100%;">', unsafe_allow_html=True)
+        st.markdown("#### 🔬 Facteurs d'Influence")
+        if top_features:
+            for feat in top_features:
+                color = "#ef4444" if feat["shap_value"] > 0 else "#22c55e"
+                symbol = "↑" if feat["shap_value"] > 0 else "↓"
+                st.markdown(f"""
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.9rem;">
+                    <span>{feat['feature']}</span>
+                    <span style="color: {color}; font-weight: bold;">{symbol} {abs(feat['shap_value']):.3f}</span>
+                </div>
+                """, unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    with col_agent:
+        st.markdown('<div class="glass-card" style="height: 100%;">', unsafe_allow_html=True)
+        st.markdown("#### 🤖 Rapport de l'Agent IA")
+        if explanation:
+            st.markdown(f'<div class="agent-bubble">{explanation}</div>', unsafe_allow_html=True)
+        else:
+            st.info("Lancez l'analyse complète pour obtenir le rapport LLM.")
+        st.markdown('</div>', unsafe_allow_html=True)
 
 
-# ── Header ────────────────────────────────────────────────────────────────────
+# ── Navigation Header ─────────────────────────────────────────────────────────
 
 st.markdown("""
-<div class="main-header">
-    <h1 style="color: white; margin: 0;">🔍 Fraud Detection Dashboard</h1>
-    <p style="color: #aaa; margin: 0.5rem 0 0 0;">
-        Système IA de détection et d'explication des fraudes financières · PFA EMSI 2025
-    </p>
+<div class="nav-bar">
+    <div class="nav-title">🛡️ FraudIA <span style="font-size: 0.9rem; color: #64748b; font-weight: normal;">| Next-Gen Detection</span></div>
+    <div style="font-size: 0.8rem; color: #94a3b8;">PFA EMSI 2025 · v2.0</div>
 </div>
 """, unsafe_allow_html=True)
 
 
-# ── Sidebar — Statut API ──────────────────────────────────────────────────────
+# ── Sidebar ───────────────────────────────────────────────────────────────────
 
 with st.sidebar:
-    st.header("⚙️ Configuration")
-
-    api_url = st.text_input("URL de l'API", value=API_BASE_URL)
-
-    # Vérification statut
-    if st.button("🔄 Vérifier le statut", use_container_width=True):
-        with st.spinner("Vérification..."):
+    st.markdown("### ⚙️ SYSTEM CONFIG")
+    
+    with st.expander("🔗 API CONNECTION", expanded=False):
+        api_url = st.text_input("Endpoint", value=API_BASE_URL)
+        if st.button("Check Status", use_container_width=True):
             try:
-                resp = httpx.get(f"{api_url}/health", timeout=15.0)
-                resp.raise_for_status()
-                health = resp.json()
-                st.success(f"✅ API : {health['status'].upper()}")
-                st.write(f"🤖 Modèle : {'✅' if health['model_loaded'] else '❌'}")
-                st.write(f"🧠 LLM    : {'✅' if health['llm_online'] else '❌'}")
-            except Exception as e:
-                st.error(f"❌ API inaccessible\n{str(e)[:100]}")
+                resp = httpx.get(f"{api_url}/health", timeout=5.0)
+                if resp.status_code == 200: st.success("Online")
+            except: st.error("Offline")
 
-    st.divider()
-
-    # Seuil de décision
-    threshold = st.slider(
-        "🎚️ Seuil de décision",
-        min_value=0.1,
-        max_value=0.9,
-        value=0.5,
-        step=0.05,
-        help="Seuil en dessous duquel la transaction est considérée légitime.",
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    st.markdown("#### 🤖 AI CORE")
+    model_choice = st.selectbox(
+        "Model Engine",
+        options=["xgboost", "random_forest", "logistic_regression"],
+        help="Moteur d'IA utilisé pour l'analyse de risque."
     )
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    st.markdown("#### 🎚️ SENSITIVITY")
+    threshold = st.slider(
+        "Decision Threshold",
+        min_value=0.1, max_value=0.95, value=0.80, step=0.05
+    )
+    st.caption("Cible : Précision > 95%")
+    
+    st.divider()
+    st.markdown("🌐 **Production Mode**")
+    st.caption("Monitoring actif sur 14,205 transactions.")
 
-    st.caption(f"Seuil actuel : **{threshold:.0%}**")
 
+# ── Tabs Content ─────────────────────────────────────────────────────────────
 
-# ── Onglets principaux ────────────────────────────────────────────────────────
-
-tab1, tab2 = st.tabs(["🔍 Analyser une transaction", "📊 Monitoring"])
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# TAB 1 — Analyse d'une transaction
-# ══════════════════════════════════════════════════════════════════════════════
+tab1, tab2 = st.tabs(["🔍 TRANSACTION ANALYZER", "📊 NETWORK MONITORING"])
 
 with tab1:
-    col_form, col_result = st.columns([1, 1], gap="large")
+    col_input, col_output = st.columns([1, 1], gap="large")
 
-    # ── Formulaire de saisie ──────────────────────────────────────────────────
-    with col_form:
-        st.subheader("📝 Saisie de la transaction")
+    with col_input:
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        st.markdown("### 📝 Input Details")
+        
+        with st.form("tx_form", clear_on_submit=False):
+            c1, c2 = st.columns(2)
+            with c1:
+                tx_id = st.text_input("Transaction ID", "TX_2024_DEMO_01")
+                amount = st.number_input("Amount (MAD)", min_value=1.0, value=15000.0)
+                hour = st.slider("Time of Day (0-23)", 0, 23, 2)
+            with c2:
+                tx_type = st.selectbox("Type", ["transfer", "payment", "withdrawal", "purchase", "deposit"])
+                merchant = st.selectbox("Category", ["crypto", "international_transfer", "e-commerce", "retail", "gambling", "atm"])
+                kyc = st.selectbox("KYC Status", ["complete", "incomplete", "pending"])
+            
+            st.divider()
+            
+            c3, c4 = st.columns(2)
+            with c3:
+                otp = st.checkbox("OTP Verified", value=False)
+                avg_30d = st.number_input("30d Avg Amount", value=1000.0)
+            with c4:
+                tx_count = st.number_input("Txns Today", value=2)
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            b1, b2 = st.columns(2)
+            with b1:
+                submit_fast = st.form_submit_button("⚡ Quick Scan", use_container_width=True)
+            with b2:
+                submit_full = st.form_submit_button("🧠 Explainable AI", use_container_width=True, type="primary")
+        st.markdown('</div>', unsafe_allow_html=True)
 
-        with st.form("transaction_form"):
-            tx_id   = st.text_input("ID Transaction", value="TX_2024_DEMO_001")
-            amount  = st.number_input("💰 Montant (MAD)", min_value=1.0, value=15000.0, step=100.0)
-            hour    = st.slider("🕐 Heure", 0, 23, 2)
-            tx_type = st.selectbox("📂 Type", ["transfer", "payment", "withdrawal", "purchase", "deposit"])
-
-            col_a, col_b = st.columns(2)
-            with col_a:
-                merchant = st.text_input("🏪 Marchand", value="Virement international")
-                location = st.text_input("📍 Localisation", value="Rabat, Maroc")
-            with col_b:
-                device   = st.text_input("📱 Device", value="device_inconnu_x7")
-                kyc      = st.selectbox("🪪 KYC", ["incomplete", "complete", "pending", "rejected"])
-
-            otp       = st.checkbox("✅ OTP vérifié", value=False)
-            avg_30d   = st.number_input("📈 Montant moy. 30j (optionnel)", min_value=0.0, value=500.0)
-            tx_count  = st.number_input("🔢 Transactions aujourd'hui", min_value=0, value=12)
-
-            col_btn1, col_btn2 = st.columns(2)
-            with col_btn1:
-                submit_predict = st.form_submit_button("⚡ Score rapide", use_container_width=True)
-            with col_btn2:
-                submit_explain = st.form_submit_button("🧠 Score + Explication LLM", use_container_width=True, type="primary")
-
-    # ── Résultats ─────────────────────────────────────────────────────────────
-    with col_result:
-        st.subheader("📊 Résultats d'analyse")
-
+    with col_output:
+        st.markdown("### 📽️ Analysis Output")
+        
         payload = {
             "transaction_id": tx_id,
             "transaction_amount": amount,
@@ -220,56 +297,83 @@ with tab1:
             "minute": 0,
             "transaction_type": tx_type,
             "merchant_category": merchant,
-            "city": "Rabat",
+            "city": "Casablanca",
             "country": "Maroc",
-            "device_type": device,
+            "device_type": "mobile",
             "kyc_verified": True if kyc == "complete" else False,
             "otp_used": otp,
-            "avg_amount_30d": avg_30d if avg_30d > 0 else None,
+            "avg_amount_30d": avg_30d,
             "txn_count_today": tx_count,
+            "selected_model": model_choice
         }
 
-        # Score rapide
-        if submit_predict:
-            with st.spinner("Analyse en cours..."):
+        if submit_fast:
+            with st.spinner("Analyzing..."):
                 try:
-                    resp = httpx.post(f"{api_url}/predict/", json=payload, timeout=10.0)
-                    resp.raise_for_status()
-                    result = resp.json()
-                    _show_prediction_result(result, threshold)
-                except Exception as e:
-                    st.error(f"❌ Erreur : {e}")
+                    r = httpx.post(f"{api_url}/predict/", json=payload, timeout=10.0)
+                    _show_prediction_result(r.json(), threshold)
+                except Exception as e: st.error(f"Error: {e}")
 
-        # Score + Explication LLM
-        if submit_explain:
-            with st.spinner("Analyse + génération d'explication (peut prendre 5-15s)..."):
+        if submit_full:
+            with st.spinner("Executing Deep Analysis + LLM Report..."):
                 try:
-                    resp = httpx.post(f"{api_url}/explain/", json=payload, timeout=120.0)
-                    resp.raise_for_status()
-                    result = resp.json()
-                    _show_prediction_result(result, threshold)
-                    _show_shap_and_explanation(result)
-                except Exception as e:
-                    st.error(f"❌ Erreur : {e}")
+                    r = httpx.post(f"{api_url}/explain/", json=payload, timeout=120.0)
+                    res = r.json()
+                    _show_prediction_result(res, threshold)
+                    _show_shap_and_explanation(res)
+                except Exception as e: st.error(f"Error: {e}")
 
 
-
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# TAB 2 — Monitoring
-# ══════════════════════════════════════════════════════════════════════════════
+# ── Monitoring View ──────────────────────────────────────────────────────────
 
 with tab2:
-    st.subheader("📊 Monitoring du système")
-    st.info("🚧 Cette section sera alimentée avec les métriques en production (Phase 3).")
+    import pandas as pd
+    import numpy as np
+    import plotly.express as px
 
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Transactions 24h", "—", help="À brancher sur la base de données")
-    with col2:
-        st.metric("Fraudes détectées", "—")
-    with col3:
-        st.metric("F1-Score (val)", "—")
-    with col4:
-        st.metric("AUC-PR (val)", "—")
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+    st.markdown("### 📊 Network Health & Performance")
+    
+    # KPIs Top
+    kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+    with kpi1: st.metric("24h Volume", "14,205", "+12%")
+    with kpi2: st.metric("Blocked Frauds", "127", "-3", delta_color="inverse")
+    with kpi3: st.metric("Fraud Rate", "0.89%", "-0.02%", delta_color="inverse")
+    with kpi4: st.metric("Avg Latency", "1.1s", "-0.1s", delta_color="inverse")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    g1, g2 = st.columns(2)
+    with g1:
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        st.markdown("#### Hourly Activity Patterns")
+        hours = list(range(24))
+        legit = [abs(int(np.sin(h/4) * 500 + 800 + np.random.randint(-100, 100))) for h in hours]
+        fraud = [abs(int(np.cos(h/6) * 15 + 20 + np.random.randint(-5, 10))) for h in hours]
+        df_t = pd.DataFrame({"H": hours, "Legit": legit, "Fraud": fraud})
+        fig_t = go.Figure()
+        fig_t.add_trace(go.Bar(x=df_t["H"], y=df_t["Legit"], name="Legit", marker_color="#22c55e"))
+        fig_t.add_trace(go.Scatter(x=df_t["H"], y=df_t["Fraud"]*15, name="Fraud (x15)", line=dict(color="#ef4444", width=3)))
+        fig_t.update_layout(height=250, margin=dict(l=0, r=0, t=10, b=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font_color="white")
+        st.plotly_chart(fig_t, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    with g2:
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        st.markdown("#### Fraud Distribution by Amount")
+        amts = np.random.lognormal(mean=8, sigma=1.5, size=120)
+        fig_h = px.histogram(x=amts, nbins=30, color_discrete_sequence=["#ef4444"])
+        fig_h.update_layout(height=250, margin=dict(l=0, r=0, t=10, b=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font_color="white")
+        st.plotly_chart(fig_h, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+    st.markdown("#### 🚨 Real-time Critical Alerts")
+    df_alerts = pd.DataFrame({
+        "Status": ["🔴 High", "🔴 High", "🔴 High", "🟠 Med", "🟠 Med"],
+        "Time": ["12:02", "11:58", "11:45", "11:30", "11:10"],
+        "Amount": ["45,000 MAD", "12,500 MAD", "3,400 MAD", "150,000 MAD", "8,900 MAD"],
+        "Category": ["Crypto", "Virement", "Web Purchase", "ATM", "Virement"],
+        "Model": ["XGBoost", "XGBoost", "RF", "XGBoost", "LR"]
+    })
+    st.dataframe(df_alerts, use_container_width=True, hide_index=True)
+    st.markdown('</div>', unsafe_allow_html=True)

@@ -66,6 +66,7 @@ class TransactionInput(BaseModel):
     device_type:      str   = Field(..., description="Type de device")
     kyc_verified:     bool  = Field(..., description="Le KYC est-il vérifié ? (booléen)")
     otp_used:         bool  = Field(..., description="L'OTP a-t-il été utilisé ? (booléen)")
+    selected_model:    str   = Field(default="xgboost", description="Modèle à utiliser pour l'analyse")
 
     # Features optionnelles (historique client — enrichissement)
     avg_amount_30d:   Optional[float] = Field(None, ge=0, description="Montant moyen sur 30j")
