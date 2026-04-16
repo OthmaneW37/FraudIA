@@ -8,64 +8,69 @@ const Gauge = React.memo(({ value, isFraud }) => {
   ];
 
   const getColor = () => {
-    if (value > 0.7) return '#f43f5e'; // Danger
-    if (value > 0.4) return '#fbbf24'; // Warning (Amber)
-    return '#10b981'; // Success
+    if (value > 0.7) return '#EF4444'; // Danger
+    if (value > 0.4) return '#F97316'; // Warning
+    return '#22C55E'; // Success
   };
+
+  const getPillClass = () => {
+    if (value > 0.7) return 'bg-danger-light text-danger';
+    if (value > 0.4) return 'bg-warning-light text-warning';
+    return 'bg-success-light text-success';
+  }
 
   const mainColor = getColor();
 
   return (
-    <div className="relative w-full h-[300px] flex items-center justify-center">
-      {/* Background Glow */}
-      <div 
-        className="absolute w-40 h-40 rounded-full blur-[60px] opacity-20"
-        style={{ backgroundColor: mainColor }}
-      ></div>
-
-      <ResponsiveContainer width="100%" height="100%">
-        <PieChart>
-          <Pie
-            data={data}
-            cx="50%"
-            cy="80%"
-            startAngle={200}
-            endAngle={-20}
-            innerRadius="75%"
-            outerRadius="95%"
-            paddingAngle={0}
-            dataKey="value"
-            stroke="none"
-            cornerRadius={40}
-          >
-            <Cell fill={mainColor} className="drop-shadow-[0_0_10px_rgba(0,0,0,0.5)]" />
-            <Cell fill="rgba(255, 255, 255, 0.03)" />
-          </Pie>
-        </PieChart>
-      </ResponsiveContainer>
-      
-      <div className="absolute inset-0 flex flex-col items-center justify-center pt-12">
-        <div className="relative">
-           <span className="text-6xl font-black text-white tracking-tighter">
-             {(value * 100).toFixed(0)}
-           </span>
-           <span className="text-xl font-bold text-slate-500 absolute -right-6 top-2">%</span>
+    <div className="relative w-full flex flex-col">
+      <div className="relative w-full h-[160px] mt-6 overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-[320px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={data}
+                cx="50%"
+                cy="50%"
+                startAngle={180}
+                endAngle={0}
+                innerRadius="75%"
+                outerRadius="90%"
+                paddingAngle={0}
+                dataKey="value"
+                stroke="none"
+                cornerRadius={40}
+              >
+                <Cell fill={mainColor} />
+                <Cell fill="#E5E5E5" />
+              </Pie>
+            </PieChart>
+          </ResponsiveContainer>
         </div>
-        <div className="flex flex-col items-center mt-2">
-           <div className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-[0.15em] mb-1 ${value > 0.5 ? 'bg-danger/10 text-danger' : 'bg-success/10 text-success'}`}>
-             {value > 0.7 ? 'Risque Critique' : value > 0.4 ? 'Risque Mod\u00e9r\u00e9' : 'Risque Faible'}
-           </div>
-           <span className="text-xs text-slate-500 font-bold uppercase tracking-widest opacity-50">
-             Indice de Probabilit\u00e9 de Fraude
-           </span>
+        
+        {/* Score and Badge inside the arch */}
+        <div className="absolute inset-0 flex flex-col items-center justify-end pb-4">
+          <div className="flex items-baseline mb-1">
+             <span className="text-6xl font-serif text-content tracking-tighter tabular-nums leading-none">
+               {(value * 100).toFixed(0)}
+             </span>
+             <span className="text-xl font-bold text-content-muted ml-0.5">%</span>
+          </div>
+          <div className={`px-4 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${getPillClass()}`}>
+             {value > 0.7 ? 'Risque Critique' : value > 0.4 ? 'Risque Modéré' : 'Risque Faible'}
+          </div>
         </div>
       </div>
 
-      {/* Decorative Marks */}
-      <div className="absolute bottom-12 w-full flex justify-between px-[20%] text-xs font-black text-slate-700 tracking-widest uppercase">
-         <span>Min</span>
-         <span>Seuil</span>
-         <span>Max</span>
+      {/* Decorative marks and label safely below the arch */}
+      <div className="mt-8 pt-4 border-t border-border w-full flex flex-col items-center gap-2">
+         <span className="text-[10px] text-content-muted font-bold uppercase tracking-widest">
+           Probabilité de Fraude
+         </span>
+         <div className="w-full flex justify-between px-[10%] text-[10px] font-bold text-content-muted tracking-widest uppercase">
+            <span>Min</span>
+            <span className="text-content">Seuil (80%)</span>
+            <span>Max</span>
+         </div>
       </div>
     </div>
   );

@@ -111,8 +111,10 @@ class FullService:
             except Exception as e:
                 logger.error(f"Erreur initialisation explainer pour {name}: {e}")
         
-        # Initialisation LLM
-        self.agent = FraudAgent(model="llama3.2:3b")
+        # Initialisation LLM — modèle configurable via LLM_MODEL dans .env
+        import os
+        llm_model = os.getenv("LLM_MODEL", "mistral")
+        self.agent = FraudAgent(model=llm_model)
 
     def predict_and_shap(self, transaction: Dict[str, Any], model_name: str = "xgboost") -> Dict[str, Any]:
         """Effectue la prédiction + SHAP (rapide, ~2-3s). Pas de LLM."""

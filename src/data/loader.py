@@ -24,7 +24,7 @@ from sklearn.model_selection import train_test_split
 
 # Path is now relative to this file (src/data/loader.py)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-DEFAULT_DATA_PATH = PROJECT_ROOT / "data" / "raw" / "improved_fraud_dataset.csv"
+DEFAULT_DATA_PATH = PROJECT_ROOT / "data" / "raw" / "improved_fraud_dataset.zip"
 TARGET_COLUMN = "is_fraud"
 RANDOM_STATE = 42
 

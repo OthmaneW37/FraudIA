@@ -1,14 +1,13 @@
 import React, { useRef, useCallback } from 'react';
-import { Zap, BrainCircuit, Info, Loader2 } from 'lucide-react';
+import { Zap, BrainCircuit, Info, Loader2, Cpu, Cloud } from 'lucide-react';
 
-const Form = React.memo(({ formData, setFormData, onSubmit, isLoading, onFullAnalysis }) => {
+const Form = React.memo(({ formData, setFormData, onSubmit, isLoading, onFullAnalysis, llmProvider, setLlmProvider }) => {
   const debounceRef = useRef({});
 
   const handleChange = useCallback((e) => {
     const { name, value, type, checked } = e.target;
     const val = type === 'checkbox' ? checked : value;
 
-    // Debounce number inputs to avoid re-render storm on fast typing
     if (type === 'number') {
       if (debounceRef.current[name]) clearTimeout(debounceRef.current[name]);
       debounceRef.current[name] = setTimeout(() => {
@@ -19,20 +18,19 @@ const Form = React.memo(({ formData, setFormData, onSubmit, isLoading, onFullAna
     }
   }, [setFormData]);
 
-  const inputClasses = "w-full bg-slate-800/40 border border-white/5 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all";
-  const labelClasses = "block text-xs font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1";
+  const labelClasses = "block text-xs font-bold text-content-muted uppercase tracking-widest mb-1.5 ml-0.5";
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {/* ID + Montant + Heure */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2">
           <label className={labelClasses}>Identifiant Transaction</label>
           <input 
             name="transaction_id"
             value={formData.transaction_id}
             onChange={handleChange}
-            className={inputClasses}
+            className="input-field"
             placeholder="Ex: TX_9921_AF"
           />
         </div>
@@ -45,9 +43,9 @@ const Form = React.memo(({ formData, setFormData, onSubmit, isLoading, onFullAna
                 name="transaction_amount"
                 defaultValue={formData.transaction_amount}
                 onChange={handleChange}
-                className={inputClasses}
+                className="input-field pr-12 w-full tabular-nums"
              />
-             <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-600">MAD</span>
+             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-content-muted">MAD</span>
           </div>
         </div>
 
@@ -57,7 +55,7 @@ const Form = React.memo(({ formData, setFormData, onSubmit, isLoading, onFullAna
               name="hour"
               value={formData.hour}
               onChange={handleChange}
-              className={inputClasses}
+              className="input-field w-full tabular-nums"
            >
               {[...Array(24)].map((_, i) => (
                 <option key={i} value={i}>{i.toString().padStart(2, '0')}:00</option>
@@ -67,14 +65,14 @@ const Form = React.memo(({ formData, setFormData, onSubmit, isLoading, onFullAna
       </div>
 
       {/* Type + Secteur */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-4">
         <div>
           <label className={labelClasses}>Type de Transaction</label>
           <select 
             name="transaction_type"
             value={formData.transaction_type}
             onChange={handleChange}
-            className={inputClasses}
+            className="input-field w-full"
           >
             <option value="transfer">Virement</option>
             <option value="payment">Paiement</option>
@@ -90,7 +88,7 @@ const Form = React.memo(({ formData, setFormData, onSubmit, isLoading, onFullAna
             name="merchant_category"
             value={formData.merchant_category}
             onChange={handleChange}
-            className={inputClasses}
+            className="input-field w-full"
           >
             <option value="retail">Commerce de détail</option>
             <option value="crypto">Cryptomonnaies</option>
@@ -102,14 +100,14 @@ const Form = React.memo(({ formData, setFormData, onSubmit, isLoading, onFullAna
       </div>
 
       {/* Localisation: Ville + Pays */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-4">
         <div>
           <label className={labelClasses}>Ville</label>
           <select 
             name="city"
             value={formData.city}
             onChange={handleChange}
-            className={inputClasses}
+            className="input-field w-full"
           >
             <option value="Casablanca">Casablanca</option>
             <option value="Rabat">Rabat</option>
@@ -126,7 +124,7 @@ const Form = React.memo(({ formData, setFormData, onSubmit, isLoading, onFullAna
             name="country"
             value={formData.country}
             onChange={handleChange}
-            className={inputClasses}
+            className="input-field w-full"
           >
             <option value="Maroc">Maroc</option>
             <option value="France">France</option>
@@ -140,14 +138,14 @@ const Form = React.memo(({ formData, setFormData, onSubmit, isLoading, onFullAna
       </div>
 
       {/* Device + Devise */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className={labelClasses}>Appareil / Device</label>
+          <label className={labelClasses}>Appareil</label>
           <select 
             name="device_type"
             value={formData.device_type}
             onChange={handleChange}
-            className={inputClasses}
+            className="input-field w-full"
           >
             <option value="Mobile App">Mobile App</option>
             <option value="Desktop Web">Desktop Web</option>
@@ -163,7 +161,7 @@ const Form = React.memo(({ formData, setFormData, onSubmit, isLoading, onFullAna
             name="currency"
             value={formData.currency}
             onChange={handleChange}
-            className={inputClasses}
+            className="input-field w-full"
           >
             <option value="MAD">MAD</option>
             <option value="EUR">EUR</option>
@@ -181,7 +179,7 @@ const Form = React.memo(({ formData, setFormData, onSubmit, isLoading, onFullAna
           name="avg_amount_30d"
           defaultValue={formData.avg_amount_30d}
           onChange={handleChange}
-          className={inputClasses}
+          className="input-field w-full tabular-nums"
           placeholder="1000"
         />
       </div>
@@ -193,7 +191,7 @@ const Form = React.memo(({ formData, setFormData, onSubmit, isLoading, onFullAna
           name="selected_model"
           value={formData.selected_model}
           onChange={handleChange}
-          className={inputClasses}
+          className="input-field w-full"
         >
           <option value="xgboost">XGBoost (Default)</option>
           <option value="random_forest">Random Forest</option>
@@ -201,49 +199,79 @@ const Form = React.memo(({ formData, setFormData, onSubmit, isLoading, onFullAna
         </select>
       </div>
 
-      <div className="flex items-center gap-6 pt-1">
+      {/* ── Sélecteur Moteur LLM ── */}
+      <div className="p-4 rounded-xl bg-white border border-border space-y-3">
+        <p className="text-xs font-bold text-content-muted uppercase tracking-widest mb-2">Moteur d'Explication IA</p>
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => setLlmProvider('local')}
+            className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-xs font-bold transition-all ${
+              llmProvider === 'local'
+                ? 'bg-primary-light border-primary/30 text-primary'
+                : 'bg-surface border-border text-content-muted hover:text-content hover:bg-white'
+            }`}
+          >
+            <Cpu className="w-3.5 h-3.5" />
+            Mistral Local
+          </button>
+          <button
+            type="button"
+            onClick={() => setLlmProvider('perplexity')}
+            className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-xs font-bold transition-all ${
+              llmProvider === 'perplexity'
+                ? 'bg-secondary-light border-secondary/30 text-secondary'
+                : 'bg-surface border-border text-content-muted hover:text-content hover:bg-white'
+            }`}
+          >
+            <Cloud className="w-3.5 h-3.5" />
+            Perplexity API
+          </button>
+        </div>
+
+        {llmProvider === 'perplexity' && (
+          <p className="text-[11px] text-content-muted ml-1">
+            Clé API configurée via <code className="font-mono bg-surface px-1 py-0.5 rounded">.env</code>
+          </p>
+        )}
+      </div>
+
+      <div className="flex items-center gap-6 pt-2">
         <label className="flex items-center gap-3 cursor-pointer group">
           <div className="relative">
             <input type="checkbox" name="otp_used" checked={formData.otp_used} onChange={handleChange} className="sr-only peer" />
-            <div className="w-10 h-6 bg-slate-800 rounded-full peer peer-checked:bg-primary transition-colors"></div>
-            <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-4"></div>
+            <div className="w-10 h-6 bg-surface border border-border rounded-full peer peer-checked:bg-primary transition-colors"></div>
+            <div className="absolute left-1 top-1 w-4 h-4 bg-white shadow-sm rounded-full transition-transform peer-checked:translate-x-4"></div>
           </div>
-          <span className="text-xs font-bold text-slate-400 group-hover:text-slate-200 transition-colors">OTP Vérifié</span>
+          <span className="text-sm font-medium text-content group-hover:text-primary transition-colors">OTP Vérifié</span>
         </label>
       </div>
 
       {/* Boutons */}
-      <div className="pt-3 space-y-3">
+      <div className="pt-6 space-y-3">
         <button 
           onClick={onSubmit}
           disabled={isLoading}
-          className="cyber-button cyber-button-outline w-full h-12 flex items-center justify-center gap-3 group disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full h-12 flex items-center justify-center gap-2 rounded-lg font-medium text-sm border border-border bg-white text-content hover:bg-surface transition-colors disabled:opacity-50"
         >
           {isLoading ? (
-            <><Loader2 className="w-4 h-4 animate-spin" /><span className="text-sm">Analyse en cours...</span></>
+            <><Loader2 className="w-4 h-4 animate-spin" /><span>Analyse en cours...</span></>
           ) : (
-            <><Zap className="w-4 h-4 group-hover:text-primary transition-colors" /><span className="text-sm">Vérification Rapide</span></>
+            <><Zap className="w-4 h-4" /><span>Vérification Rapide</span></>
           )}
         </button>
         
         <button 
           onClick={onFullAnalysis}
           disabled={isLoading}
-          className="cyber-button cyber-button-primary w-full h-14 flex items-center justify-center gap-3 shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="btn-primary w-full h-12 flex items-center justify-center gap-2 shadow-soft disabled:opacity-50"
         >
           {isLoading ? (
-            <><Loader2 className="w-5 h-5 animate-spin" /><span className="text-sm">Génération du rapport...</span></>
+            <><Loader2 className="w-5 h-5 animate-spin" /><span>Génération...</span></>
           ) : (
-            <><BrainCircuit className="w-5 h-5" /><span className="text-sm">Expertise IA Complète</span></>
+            <><BrainCircuit className="w-5 h-5" /><span>Expertise IA Complète</span></>
           )}
         </button>
-      </div>
-
-      <div className="p-3 rounded-xl bg-primary/5 border border-primary/10 flex gap-3">
-         <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-         <p className="text-xs text-slate-400 leading-relaxed font-medium">
-            Le mode "Expertise IA" génère un rapport SHAP + analyse LLM locale (LLaMA 3.2). Temps estimé : 15-30s.
-         </p>
       </div>
     </div>
   );
