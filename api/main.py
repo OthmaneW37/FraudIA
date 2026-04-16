@@ -78,10 +78,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — autorise Streamlit (localhost:8501) à appeler l'API
+# CORS — autorise Streamlit (8501) et le futur React (5173) à appeler l'API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8501", "http://127.0.0.1:8501"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

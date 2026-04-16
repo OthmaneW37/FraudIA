@@ -112,7 +112,36 @@ class FullService:
                 logger.error(f"Erreur initialisation explainer pour {name}: {e}")
         
         # Initialisation LLM
-        self.agent = FraudAgent(model="mistral")
+        self.agent = FraudAgent(model="llama3.2:3b")
+
+    def predict_and_shap(self, transaction: Dict[str, Any], model_name: str = "xgboost") -> Dict[str, Any]:
+        """Effectue la prédiction + SHAP (rapide, ~2-3s). Pas de LLM."""
+        df_in = self.model_service._prepare_transaction(transaction)
+        X_proc = self.preprocessor.transform(df_in)
+        
+        trainer = self.model_service.trainers.get(model_name, self.model_service.trainers.get("xgboost"))
+        explainer = self.explainers.get(model_name, self.explainers.get("xgboost"))
+        threshold = self.model_service.thresholds.get(model_name, 0.5)
+        
+        proba = trainer.predict_proba(X_proc)[0, 1]
+        shap_values = explainer.explain_instance(X_proc)
+        top_features = explainer.get_top_features(shap_values, n=5)
+        
+        return {
+            "fraud_probability": float(proba),
+            "threshold": threshold,
+            "top_features": top_features,
+            "llm_model": getattr(self.agent, "model", "mistral")
+        }
+
+    def generate_explanation(self, transaction: Dict[str, Any], fraud_probability: float, top_features: list, threshold: float = 0.5) -> str:
+        """Génère uniquement l'explication LLM (lent, ~30-60s)."""
+        return self.agent.explain(
+            transaction=transaction,
+            fraud_probability=fraud_probability,
+            top_features=top_features,
+            threshold=threshold
+        )
 
     def predict_and_explain(self, transaction: Dict[str, Any], model_name: str = "xgboost") -> Dict[str, Any]:
         """Effectue la prédiction, extrait les motifs SHAP, puis génère l'explication LLM."""

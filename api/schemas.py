@@ -128,6 +128,7 @@ class ExplanationResponse(BaseModel):
     risk_level:        RiskLevel
     top_features:      List[ShapFeature]
     explanation:       str = Field(..., description="Explication en langage naturel (LLM)")
+    model_name:        str = Field(..., description="Nom du modèle ML utilisé")
     llm_model:         str
     processing_time_ms: float
 

@@ -16,6 +16,7 @@ from __future__ import annotations
 import os
 from typing import Optional
 
+import httpx
 from dotenv import load_dotenv
 from langchain_community.llms import Ollama
 from langchain_core.output_parsers import StrOutputParser
@@ -32,7 +33,7 @@ DEFAULT_OLLAMA_URL   = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 DEFAULT_MODEL        = os.getenv("OLLAMA_MODEL", "mistral")
 DEFAULT_TEMPERATURE  = 0.1   # Faible → réponses déterministes et factuelles
 DEFAULT_TOP_P        = 0.9
-DEFAULT_MAX_TOKENS   = 512   # Suffisant pour une explication concise
+DEFAULT_MAX_TOKENS   = 256   # Court et rapide — explication concise
 
 
 # ── Classe principale ────────────────────────────────────────────────────────
@@ -87,6 +88,8 @@ class FraudAgent:
             temperature=self.temperature,
             top_p=DEFAULT_TOP_P,
             num_predict=self.max_tokens,
+            num_ctx=2048,
+            timeout=120,
         )
 
         prompt = build_fraud_prompt()
@@ -146,22 +149,23 @@ class FraudAgent:
 
     def health_check(self) -> bool:
         """
-        Vérifie que le serveur Ollama est accessible.
+        Vérifie rapidement que le serveur Ollama est accessible.
 
-        Returns True si le LLM répond, False sinon.
+        Important: on évite toute invocation LLM ici pour ne pas bloquer
+        l'event loop FastAPI dans /health si Ollama est hors ligne.
         """
         try:
-            test_chain = self._chain
-            test_chain.invoke({
-                "transaction_id": "TEST", "transaction_amount": 0, "currency": "MAD",
-                "hour": 0, "minute": 0, "transaction_type": "test",
-                "merchant_category": "test", "city": "test", "country": "test", "device_type": "test",
-                "kyc_verified": "ok", "otp_used": "yes",
-                "fraud_probability": 0.0, "threshold": 0.5, "decision": "OK",
-                "shap_features_formatted": "aucune feature",
-                "avg_amount_30d": 100, "amount_ratio": 1.0, "txn_count_today": 1,
-            })
-            return True
+            tags_url = f"{self.base_url.rstrip('/')}/api/tags"
+            response = httpx.get(tags_url, timeout=1.5)
+            if response.status_code != 200:
+                return False
+
+            data = response.json() if response.content else {}
+            models = data.get("models", []) if isinstance(data, dict) else []
+            available_names = [m.get("name", "") for m in models if isinstance(m, dict)]
+
+            # Accepte 'mistral' et variantes nommées style 'mistral:latest'.
+            return any(name.startswith(self.model) for name in available_names)
         except Exception as e:
             logger.warning(f"Ollama inaccessible : {e}")
             return False
