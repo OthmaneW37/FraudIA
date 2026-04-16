@@ -5,7 +5,7 @@
 
 ---
 
-## 🎯 Objectif
+##  Objectif
 
 Système hybride de détection de fraude financière qui :
 1. **Détecte** les transactions suspectes (ML/DL)
@@ -15,7 +15,7 @@ Système hybride de détection de fraude financière qui :
 
 ---
 
-## 🏗️ Architecture — 4 Piliers
+##  Architecture — 4 Piliers
 
 | Pilier | Technologie | Rôle |
 |--------|-------------|------|
@@ -26,7 +26,7 @@ Système hybride de détection de fraude financière qui :
 
 ---
 
-## 📁 Structure du projet
+##  Structure du projet
 
 ```
 code/
@@ -51,7 +51,7 @@ code/
 
 ---
 
-## 🚀 Installation
+##  Installation
 
 ### 1. Pré-requis
 - Python 3.11+
@@ -85,9 +85,9 @@ data/raw/improved_fraud_dataset.csv
 
 ---
 
-## 🔄 Roadmap
+##  Roadmap
 
-- [x] Phase 0 : Setup & Scaffolding
+- [ ] Phase 0 : Setup & Scaffolding
 - [ ] Phase 0 : EDA (Exploratory Data Analysis)
 - [ ] Phase 1 : Baselines ML (LR, RF, XGBoost)
 - [ ] Phase 2 : XAI (SHAP) + Agent LLM
@@ -95,7 +95,7 @@ data/raw/improved_fraud_dataset.csv
 
 ---
 
-## 📊 Dataset
+##  Dataset
 
 | Propriété | Valeur |
 |-----------|--------|
@@ -107,9 +107,9 @@ data/raw/improved_fraud_dataset.csv
 
 ---
 
-## 📏 Métriques de référence
+##  Métriques de référence
 
-> ⚠️ **L'Accuracy n'est JAMAIS utilisée** (dataset déséquilibré)
+>  **L'Accuracy n'est JAMAIS utilisée** (dataset déséquilibré)
 
 - **F1-Score** (compromis précision/rappel)
 - **AUC-PR** (Area Under Precision-Recall Curve)
@@ -117,7 +117,7 @@ data/raw/improved_fraud_dataset.csv
 
 ---
 
-## 🛠️ Stack technique
+##  Stack technique
 
 ```
 Python 3.11 · XGBoost · scikit-learn · imbalanced-learn
