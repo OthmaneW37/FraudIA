@@ -1,7 +1,7 @@
 import React, { useRef, useCallback } from 'react';
-import { Zap, BrainCircuit, Info, Loader2, Cpu, Cloud } from 'lucide-react';
+import { Zap, BrainCircuit, Info, Loader2, Cloud } from 'lucide-react';
 
-const Form = React.memo(({ formData, setFormData, onSubmit, isLoading, onFullAnalysis, llmProvider, setLlmProvider }) => {
+const Form = React.memo(({ formData, setFormData, onSubmit, isLoading, onFullAnalysis }) => {
   const debounceRef = useRef({});
 
   const handleChange = useCallback((e) => {
@@ -199,41 +199,16 @@ const Form = React.memo(({ formData, setFormData, onSubmit, isLoading, onFullAna
         </select>
       </div>
 
-      {/* ── Sélecteur Moteur LLM ── */}
+      {/* ── Moteur LLM ── */}
       <div className="p-4 rounded-xl bg-white border border-border space-y-3">
         <p className="text-xs font-bold text-content-muted uppercase tracking-widest mb-2">Moteur d'Explication IA</p>
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={() => setLlmProvider('local')}
-            className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-xs font-bold transition-all ${
-              llmProvider === 'local'
-                ? 'bg-primary-light border-primary/30 text-primary'
-                : 'bg-surface border-border text-content-muted hover:text-content hover:bg-white'
-            }`}
-          >
-            <Cpu className="w-3.5 h-3.5" />
-            Mistral Local
-          </button>
-          <button
-            type="button"
-            onClick={() => setLlmProvider('perplexity')}
-            className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-xs font-bold transition-all ${
-              llmProvider === 'perplexity'
-                ? 'bg-secondary-light border-secondary/30 text-secondary'
-                : 'bg-surface border-border text-content-muted hover:text-content hover:bg-white'
-            }`}
-          >
-            <Cloud className="w-3.5 h-3.5" />
-            Perplexity API
-          </button>
+        <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-secondary-light border border-secondary/30">
+          <Cloud className="w-3.5 h-3.5 text-secondary" />
+          <span className="text-xs font-bold text-secondary">Perplexity API (Sonar)</span>
         </div>
-
-        {llmProvider === 'perplexity' && (
-          <p className="text-[11px] text-content-muted ml-1">
-            Clé API configurée via <code className="font-mono bg-surface px-1 py-0.5 rounded">.env</code>
-          </p>
-        )}
+        <p className="text-[11px] text-content-muted ml-1">
+          Clé API configurée via <code className="font-mono bg-surface px-1 py-0.5 rounded">.env</code>
+        </p>
       </div>
 
       <div className="flex items-center gap-6 pt-2">

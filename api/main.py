@@ -22,6 +22,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
 from api.routes import explain, predict
+from api.routes import auth_routes
+from api.routes import batch as batch_routes
 from api.schemas import HealthResponse
 
 load_dotenv()
@@ -46,6 +48,10 @@ async def lifespan(app: FastAPI):
     # ── STARTUP ──
     global model_service, full_service
     logger.info("Démarrage de l'API Fraude Detection...")
+
+    # Initialiser la base de données auth
+    from api.auth import init_db
+    init_db()
 
     try:
         from api.services import FullService, ModelService
@@ -88,8 +94,10 @@ app.add_middleware(
 )
 
 # Monter les routers
+app.include_router(auth_routes.router)
 app.include_router(predict.router)
 app.include_router(explain.router)
+app.include_router(batch_routes.router)
 
 
 # ── Endpoints racine ──────────────────────────────────────────────────────────

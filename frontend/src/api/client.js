@@ -9,7 +9,95 @@ const client = axios.create({
   },
 });
 
+// Injecter le token JWT dans chaque requête si disponible
+client.interceptors.request.use((config) => {
+  const token = localStorage.getItem('fraudia_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Si le token expire (401), déconnecter
+client.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401 && localStorage.getItem('fraudia_token')) {
+      localStorage.removeItem('fraudia_token');
+      localStorage.removeItem('fraudia_user');
+      window.location.reload();
+    }
+    return Promise.reject(error);
+  }
+);
+
 export const api = {
+  // ── Auth ──
+  login: async (email, password) => {
+    const response = await client.post('/auth/login', { email, password });
+    const { access_token, user } = response.data;
+    localStorage.setItem('fraudia_token', access_token);
+    localStorage.setItem('fraudia_user', JSON.stringify(user));
+    return response.data;
+  },
+
+  logout: () => {
+    localStorage.removeItem('fraudia_token');
+    localStorage.removeItem('fraudia_user');
+  },
+
+  getMe: async () => {
+    const response = await client.get('/auth/me');
+    return response.data;
+  },
+
+  getStoredUser: () => {
+    try {
+      const user = localStorage.getItem('fraudia_user');
+      const token = localStorage.getItem('fraudia_token');
+      if (user && token) return JSON.parse(user);
+      return null;
+    } catch { return null; }
+  },
+
+  // ── Transactions history (cloisonné) ──
+  getTransactions: async () => {
+    const response = await client.get('/auth/transactions');
+    return response.data;
+  },
+
+  getAnalytics: async () => {
+    const response = await client.get('/auth/analytics');
+    return response.data;
+  },
+
+  saveTransaction: async (data) => {
+    const response = await client.post('/auth/transactions', data);
+    return response.data;
+  },
+
+  updateTransaction: async (rowId, data) => {
+    const response = await client.put(`/auth/transactions/${rowId}`, data);
+    return response.data;
+  },
+
+  deleteTransaction: async (rowId) => {
+    const response = await client.delete(`/auth/transactions/${rowId}`);
+    return response.data;
+  },
+
+  // ── Batch upload ──
+  batchUpload: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await client.post('/batch/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 300000,
+    });
+    return response.data;
+  },
+
+  // ── Existing API ──
   checkHealth: async () => {
     const response = await client.get('/health');
     return response.data;

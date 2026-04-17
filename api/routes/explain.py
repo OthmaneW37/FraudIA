@@ -8,7 +8,6 @@ explain.py — Endpoints d'explication :
 from __future__ import annotations
 
 import time
-import os
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from loguru import logger
@@ -53,15 +52,13 @@ class LLMRequest(BaseModel):
     fraud_probability: float
     top_features: List[ShapFeature]
     threshold: float = 0.5
-    # Moteur LLM : 'local' (Mistral Ollama) ou 'perplexity' (clé dans .env)
-    llm_provider: str = "local"
 
 
 class LLMResponse(BaseModel):
     transaction_id: str
     explanation: str
     llm_model: str
-    llm_provider: str = "local"   # "local" | "perplexity"
+    llm_provider: str = "perplexity"
     processing_time_ms: float
 
 
@@ -103,61 +100,18 @@ def explain_llm(
     service=Depends(get_full_service),
 ) -> LLMResponse:
     start = time.perf_counter()
-    provider = "local"
-    model_used = getattr(service.agent, "model", "mistral")
+    model_used = getattr(service.agent, "model", "sonar")
 
     try:
-        tx_dict = req.model_dump(exclude={"llm_provider"})
+        tx_dict = req.model_dump()
         features_raw = [f.model_dump() for f in req.top_features]
 
-        pplx_key = os.getenv("PERPLEXITY_API_KEY", "").strip()
-
-        if req.llm_provider == "perplexity" and pplx_key:
-            # ── Perplexity API ──────────────────────────────────────────────
-            import os as _os
-            import httpx as _httpx
-            from src.agent.prompt import build_transaction_payload, SYSTEM_PROMPT, HUMAN_TEMPLATE
-
-            pplx_model = _os.getenv("PERPLEXITY_MODEL", "sonar")
-
-            payload = build_transaction_payload(
-                transaction=tx_dict,
-                fraud_probability=req.fraud_probability,
-                top_features=features_raw,
-                threshold=req.threshold,
-            )
-            # Formater le template human avec les variables
-            human_text = HUMAN_TEMPLATE.format(**payload)
-
-            perplexity_resp = _httpx.post(
-                "https://api.perplexity.ai/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {pplx_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": pplx_model,
-                    "messages": [
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        {"role": "user",   "content": human_text},
-                    ],
-                    "max_tokens": 500,
-                    "temperature": 0.2,
-                },
-                timeout=30.0,
-            )
-            perplexity_resp.raise_for_status()
-            explanation = perplexity_resp.json()["choices"][0]["message"]["content"]
-            provider = "perplexity"
-            model_used = pplx_model
-        else:
-            # ── Ollama local (Mistral) ──────────────────────────────────────
-            explanation = service.generate_explanation(
-                transaction=tx_dict,
-                fraud_probability=req.fraud_probability,
-                top_features=features_raw,
-                threshold=req.threshold,
-            )
+        explanation = service.generate_explanation(
+            transaction=tx_dict,
+            fraud_probability=req.fraud_probability,
+            top_features=features_raw,
+            threshold=req.threshold,
+        )
     except Exception as e:
         logger.error(f"Erreur LLM [{req.transaction_id}]: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -167,7 +121,7 @@ def explain_llm(
         transaction_id=req.transaction_id,
         explanation=explanation,
         llm_model=model_used,
-        llm_provider=provider,
+        llm_provider="perplexity",
         processing_time_ms=round(elapsed_ms, 2),
     )
 

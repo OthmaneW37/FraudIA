@@ -1,10 +1,10 @@
 """
-llm_client.py — Intégration LangChain + Ollama (LLM local).
+llm_client.py — Intégration LangChain + Perplexity API (LLM cloud).
 
-Pourquoi Ollama local ?
-  → Zéro coût API, confidentialité des données financières
-  → Modèles disponibles : mistral (7B), llama3 (8B), gemma2 (9B), phi3
-  → Mistral recommandé : bon équilibre performance/vitesse pour le raisonnement structuré
+Pourquoi Perplexity ?
+  → API rapide et fiable (sonar / sonar-pro)
+  → Compatible OpenAI (même format de requêtes)
+  → Pas besoin de GPU local ni d'Ollama
 
 Architecture de la chaîne LangChain :
   prompt_template | llm | output_parser
@@ -18,7 +18,7 @@ from typing import Optional
 
 import httpx
 from dotenv import load_dotenv
-from langchain_community.llms import Ollama
+from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnableSequence
 from loguru import logger
@@ -29,11 +29,12 @@ load_dotenv()
 
 # ── Constantes ──────────────────────────────────────────────────────────────
 
-DEFAULT_OLLAMA_URL   = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-DEFAULT_MODEL        = os.getenv("OLLAMA_MODEL", "mistral")
+DEFAULT_API_KEY      = os.getenv("PERPLEXITY_API_KEY", "")
+DEFAULT_MODEL        = os.getenv("PERPLEXITY_MODEL", "sonar")
+DEFAULT_BASE_URL     = os.getenv("PERPLEXITY_BASE_URL", "https://api.perplexity.ai")
 DEFAULT_TEMPERATURE  = 0.1   # Faible → réponses déterministes et factuelles
 DEFAULT_TOP_P        = 0.9
-DEFAULT_MAX_TOKENS   = 256   # Court et rapide — explication concise
+DEFAULT_MAX_TOKENS   = 512
 
 
 # ── Classe principale ────────────────────────────────────────────────────────
@@ -46,7 +47,7 @@ class FraudAgent:
       transaction + shap_values
         → build_transaction_payload()
         → prompt_template
-        → Ollama (Mistral/LLaMA local)
+        → Perplexity API (sonar / sonar-pro)
         → texte d'explication
 
     Usage :
@@ -58,11 +59,13 @@ class FraudAgent:
     def __init__(
         self,
         model: str = DEFAULT_MODEL,
-        base_url: str = DEFAULT_OLLAMA_URL,
+        api_key: str = DEFAULT_API_KEY,
+        base_url: str = DEFAULT_BASE_URL,
         temperature: float = DEFAULT_TEMPERATURE,
         max_tokens: int = DEFAULT_MAX_TOKENS,
     ) -> None:
         self.model = model
+        self.api_key = api_key
         self.base_url = base_url
         self.temperature = temperature
         self.max_tokens = max_tokens
@@ -80,23 +83,22 @@ class FraudAgent:
         LCEL (LangChain Expression Language) permet de chaîner les composants
         avec l'opérateur | de manière lisible et composable.
         """
-        logger.info(f"Initialisation Ollama — modèle: {self.model} @ {self.base_url}")
+        logger.info(f"Initialisation Perplexity — modèle: {self.model} @ {self.base_url}")
 
-        llm = Ollama(
+        llm = ChatOpenAI(
+            api_key=self.api_key,
             base_url=self.base_url,
             model=self.model,
             temperature=self.temperature,
-            top_p=DEFAULT_TOP_P,
-            num_predict=self.max_tokens,
-            num_ctx=2048,
-            timeout=120,
+            max_tokens=self.max_tokens,
+            timeout=60,
         )
 
         prompt = build_fraud_prompt()
         parser = StrOutputParser()
 
         self._chain = prompt | llm | parser
-        logger.success("Agent LLM prêt ✓")
+        logger.success("Agent LLM Perplexity prêt ✓")
 
     # ── API publique ──────────────────────────────────────────────────────────
 
@@ -149,25 +151,23 @@ class FraudAgent:
 
     def health_check(self) -> bool:
         """
-        Vérifie rapidement que le serveur Ollama est accessible.
+        Vérifie rapidement que l'API Perplexity est accessible.
 
         Important: on évite toute invocation LLM ici pour ne pas bloquer
-        l'event loop FastAPI dans /health si Ollama est hors ligne.
+        l'event loop FastAPI dans /health.
         """
         try:
-            tags_url = f"{self.base_url.rstrip('/')}/api/tags"
-            response = httpx.get(tags_url, timeout=1.5)
-            if response.status_code != 200:
-                return False
-
-            data = response.json() if response.content else {}
-            models = data.get("models", []) if isinstance(data, dict) else []
-            available_names = [m.get("name", "") for m in models if isinstance(m, dict)]
-
-            # Accepte 'mistral' et variantes nommées style 'mistral:latest'.
-            return any(name.startswith(self.model) for name in available_names)
+            # Simple test: envoyer un HEAD/GET vers l'API base URL
+            response = httpx.get(
+                f"{self.base_url.rstrip('/')}/chat/completions",
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                timeout=3.0,
+            )
+            # Perplexity retourne 405 (Method Not Allowed pour GET) ou 200/401
+            # Si on a un code != connection error, l'API est accessible
+            return response.status_code in (200, 405, 422)
         except Exception as e:
-            logger.warning(f"Ollama inaccessible : {e}")
+            logger.warning(f"Perplexity API inaccessible : {e}")
             return False
 
     # ── Fallback sans LLM ─────────────────────────────────────────────────────
@@ -183,9 +183,9 @@ class FraudAgent:
         Garantit que l'API reste fonctionnelle même sans LLM.
         """
         risk_level = (
-            "CRITIQUE" if fraud_probability > 0.9
-            else "ÉLEVÉ" if fraud_probability > 0.7
-            else "MOYEN" if fraud_probability > 0.5
+            "CRITIQUE" if fraud_probability >= 0.9
+            else "ÉLEVÉ" if fraud_probability >= 0.7
+            else "MOYEN" if fraud_probability >= 0.4
             else "FAIBLE"
         )
 

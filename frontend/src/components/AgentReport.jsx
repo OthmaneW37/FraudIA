@@ -64,7 +64,7 @@ const AgentReport = React.memo(({ report, llmProvider }) => {
     sections = [{ title: null, content: String(report) }];
   }
 
-  const providerLabel = llmProvider === 'perplexity' ? 'Perplexity API' : 'Mistral Local';
+  const providerLabel = 'Perplexity API';
 
   return (
     <motion.div 

@@ -8,14 +8,16 @@ const Gauge = React.memo(({ value, isFraud }) => {
   ];
 
   const getColor = () => {
-    if (value > 0.7) return '#EF4444'; // Danger
-    if (value > 0.4) return '#F97316'; // Warning
-    return '#22C55E'; // Success
+    if (value >= 0.9) return '#DC2626'; // Critique
+    if (value >= 0.7) return '#EF4444'; // Élevé
+    if (value >= 0.4) return '#F97316'; // Moyen
+    return '#22C55E'; // Faible
   };
 
   const getPillClass = () => {
-    if (value > 0.7) return 'bg-danger-light text-danger';
-    if (value > 0.4) return 'bg-warning-light text-warning';
+    if (value >= 0.9) return 'bg-danger-light text-danger';
+    if (value >= 0.7) return 'bg-danger-light text-danger';
+    if (value >= 0.4) return 'bg-warning-light text-warning';
     return 'bg-success-light text-success';
   }
 
@@ -56,7 +58,7 @@ const Gauge = React.memo(({ value, isFraud }) => {
              <span className="text-xl font-bold text-content-muted ml-0.5">%</span>
           </div>
           <div className={`px-4 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${getPillClass()}`}>
-             {value > 0.7 ? 'Risque Critique' : value > 0.4 ? 'Risque Modéré' : 'Risque Faible'}
+             {value >= 0.9 ? 'Risque Critique' : value >= 0.7 ? 'Risque Élevé' : value >= 0.4 ? 'Risque Modéré' : 'Risque Faible'}
           </div>
         </div>
       </div>

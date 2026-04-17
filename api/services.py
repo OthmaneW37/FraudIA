@@ -111,9 +111,9 @@ class FullService:
             except Exception as e:
                 logger.error(f"Erreur initialisation explainer pour {name}: {e}")
         
-        # Initialisation LLM — modèle configurable via LLM_MODEL dans .env
+        # Initialisation LLM — Perplexity API
         import os
-        llm_model = os.getenv("LLM_MODEL", "mistral")
+        llm_model = os.getenv("PERPLEXITY_MODEL", "sonar")
         self.agent = FraudAgent(model=llm_model)
 
     def predict_and_shap(self, transaction: Dict[str, Any], model_name: str = "xgboost") -> Dict[str, Any]:
@@ -133,7 +133,7 @@ class FullService:
             "fraud_probability": float(proba),
             "threshold": threshold,
             "top_features": top_features,
-            "llm_model": getattr(self.agent, "model", "mistral")
+            "llm_model": getattr(self.agent, "model", "sonar")
         }
 
     def generate_explanation(self, transaction: Dict[str, Any], fraud_probability: float, top_features: list, threshold: float = 0.5) -> str:
@@ -175,5 +175,5 @@ class FullService:
             "threshold": threshold,
             "top_features": top_features,
             "explanation": explanation,
-            "llm_model": getattr(self.agent, "model", "mistral")
+            "llm_model": getattr(self.agent, "model", "sonar")
         }
