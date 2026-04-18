@@ -1,11 +1,11 @@
 """
-auth.py — Authentification JWT + gestion des utilisateurs (SQLite).
+auth.py - Authentification JWT + gestion des utilisateurs (SQLite).
 
 Architecture :
   - SQLite local (users.db) pour stocker les comptes analystes
-  - Mots de passe hashés avec bcrypt
+  - Mots de passe hashes avec bcrypt
   - JWT (JSON Web Token) pour les sessions
-  - Cloisonnement des données : chaque analyste a ses propres transactions
+  - Cloisonnement des donnees : chaque analyste a ses propres transactions
 """
 
 from __future__ import annotations
@@ -18,13 +18,12 @@ from pathlib import Path
 from typing import Optional
 
 import bcrypt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from loguru import logger
 from pydantic import BaseModel
 
-# ── Config ────────────────────────────────────────────────────────────────────
 
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "fraudia-secret-key-change-in-production-2026")
 ALGORITHM = "HS256"
@@ -33,6 +32,7 @@ ACCESS_TOKEN_EXPIRE_HOURS = 12
 DB_PATH = Path(__file__).parent.parent / "users.db"
 
 security = HTTPBearer()
+optional_security = HTTPBearer(auto_error=False)
 
 
 def _hash_password(password: str) -> str:
@@ -42,8 +42,6 @@ def _hash_password(password: str) -> str:
 def _verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
 
-
-# ── Schemas ───────────────────────────────────────────────────────────────────
 
 class LoginRequest(BaseModel):
     email: str
@@ -71,10 +69,8 @@ class TransactionRecord(BaseModel):
     is_fraud: bool
     model_name: str
     created_at: Optional[str] = None
-    form_data: Optional[str] = None  # JSON string
+    form_data: Optional[str] = None
 
-
-# ── Database ──────────────────────────────────────────────────────────────────
 
 def _get_db() -> sqlite3.Connection:
     conn = sqlite3.connect(str(DB_PATH))
@@ -83,11 +79,12 @@ def _get_db() -> sqlite3.Connection:
     return conn
 
 
-def init_db():
-    """Crée les tables si elles n'existent pas et insère les utilisateurs par défaut."""
+def init_db() -> None:
+    """Cree les tables si elles n'existent pas et insere les utilisateurs par defaut."""
     conn = _get_db()
     try:
-        conn.executescript("""
+        conn.executescript(
+            """
             CREATE TABLE IF NOT EXISTS users (
                 id TEXT PRIMARY KEY,
                 email TEXT UNIQUE NOT NULL,
@@ -96,7 +93,7 @@ def init_db():
                 role TEXT NOT NULL DEFAULT 'analyst',
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
-            
+
             CREATE TABLE IF NOT EXISTS transactions (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -112,11 +109,11 @@ def init_db():
                 created_at TEXT NOT NULL DEFAULT (datetime('now')),
                 FOREIGN KEY (user_id) REFERENCES users(id)
             );
-            
-            CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);
-        """)
 
-        # Insérer les analystes par défaut (la banque fournit les comptes)
+            CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);
+            """
+        )
+
         default_users = [
             ("Othmane Wari", "othmane@fraudia.ma", "analyst123"),
             ("Sara Bennani", "sara@fraudia.ma", "analyst123"),
@@ -127,34 +124,33 @@ def init_db():
 
         for name, email, password in default_users:
             existing = conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
-            if not existing:
-                user_id = str(uuid.uuid4())
-                password_hash = _hash_password(password)
-                conn.execute(
-                    "INSERT INTO users (id, email, full_name, password_hash, role) VALUES (?, ?, ?, ?, ?)",
-                    (user_id, email, name, password_hash, "analyst"),
-                )
-                logger.info(f"Utilisateur créé : {email}")
+            if existing:
+                continue
+
+            user_id = str(uuid.uuid4())
+            password_hash = _hash_password(password)
+            conn.execute(
+                "INSERT INTO users (id, email, full_name, password_hash, role) VALUES (?, ?, ?, ?, ?)",
+                (user_id, email, name, password_hash, "analyst"),
+            )
+            logger.info(f"Utilisateur cree : {email}")
 
         conn.commit()
-        
-        # Migration : ajouter la colonne annotation si elle n'existe pas
+
         try:
             conn.execute("SELECT annotation FROM transactions LIMIT 1")
         except sqlite3.OperationalError:
             conn.execute("ALTER TABLE transactions ADD COLUMN annotation TEXT DEFAULT NULL")
             conn.commit()
-            logger.info("Migration : colonne 'annotation' ajoutée à transactions")
-        
-        logger.success("Base de données auth initialisée ✓")
+            logger.info("Migration : colonne 'annotation' ajoutee a transactions")
+
+        logger.success("Base de donnees auth initialisee")
     finally:
         conn.close()
 
 
-# ── Auth helpers ──────────────────────────────────────────────────────────────
-
 def authenticate_user(email: str, password: str) -> Optional[dict]:
-    """Vérifie les identifiants et retourne l'utilisateur ou None."""
+    """Verifie les identifiants et retourne l'utilisateur ou None."""
     conn = _get_db()
     try:
         row = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
@@ -166,38 +162,55 @@ def authenticate_user(email: str, password: str) -> Optional[dict]:
 
 
 def create_access_token(user_id: str) -> str:
-    """Crée un JWT avec expiration."""
+    """Cree un JWT avec expiration."""
     expire = datetime.now(timezone.utc) + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
     payload = {"sub": user_id, "exp": expire}
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
-def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
-    """Dépendance FastAPI : extrait et valide le token JWT."""
-    token = credentials.credentials
+def _get_user_from_token(token: str) -> Optional[dict]:
+    """Retourne l'utilisateur associe au token JWT, ou None si le token est invalide."""
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("sub")
         if user_id is None:
-            raise HTTPException(status_code=401, detail="Token invalide")
+            return None
     except JWTError:
-        raise HTTPException(status_code=401, detail="Token invalide ou expiré")
+        return None
 
     conn = _get_db()
     try:
         row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
-        if row is None:
-            raise HTTPException(status_code=401, detail="Utilisateur introuvable")
-        return dict(row)
+        return dict(row) if row else None
     finally:
         conn.close()
 
 
-# ── Transaction history (cloisonné par utilisateur) ───────────────────────────
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
+    """Dependance FastAPI : extrait et valide le token JWT."""
+    user = _get_user_from_token(credentials.credentials)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Token invalide ou expire")
+    return user
+
+
+def get_current_user_optional(
+    credentials: HTTPAuthorizationCredentials | None = Depends(optional_security),
+) -> Optional[dict]:
+    """Retourne l'utilisateur connecte si le token est present et valide, sinon None."""
+    if credentials is None:
+        return None
+
+    user = _get_user_from_token(credentials.credentials)
+    if user is None:
+        logger.warning("Token optionnel invalide recu sur un endpoint public.")
+    return user
+
 
 def save_transaction(user_id: str, data: dict) -> str:
-    """Enregistre une transaction analysée pour un utilisateur. Retourne l'id."""
+    """Enregistre une transaction analysee pour un utilisateur. Retourne l'id."""
     import json
+
     row_id = str(uuid.uuid4())
     conn = _get_db()
     try:
@@ -223,9 +236,10 @@ def save_transaction(user_id: str, data: dict) -> str:
         conn.close()
 
 
-def update_transaction(user_id: str, row_id: str, data: dict):
-    """Met à jour une transaction existante (ex: ajout de l'explication LLM)."""
+def update_transaction(user_id: str, row_id: str, data: dict) -> None:
+    """Met a jour une transaction existante (ex: ajout de l'explication LLM)."""
     import json
+
     conn = _get_db()
     try:
         sets, vals = [], []
@@ -250,7 +264,7 @@ def update_transaction(user_id: str, row_id: str, data: dict):
         conn.close()
 
 
-def delete_transaction(user_id: str, row_id: str):
+def delete_transaction(user_id: str, row_id: str) -> None:
     """Supprime une transaction (cloisonnement par user_id)."""
     conn = _get_db()
     try:
@@ -264,7 +278,7 @@ def delete_transaction(user_id: str, row_id: str):
 
 
 def get_user_transactions(user_id: str, limit: int = 50) -> list[dict]:
-    """Récupère les transactions d'un analyste (cloisonnement)."""
+    """Recupere les transactions d'un analyste (cloisonnement)."""
     conn = _get_db()
     try:
         rows = conn.execute(
@@ -277,7 +291,7 @@ def get_user_transactions(user_id: str, limit: int = 50) -> list[dict]:
 
 
 def get_user_analytics(user_id: str) -> dict:
-    """Agrège les statistiques d'analyse pour le dashboard analytique."""
+    """Agrege les statistiques d'analyse pour le dashboard analytique."""
     import json
     from collections import Counter, defaultdict
 
@@ -295,111 +309,103 @@ def get_user_analytics(user_id: str) -> dict:
     if total == 0:
         return {"total": 0}
 
-    # 1. Répartition par niveau de risque (pie chart)
     risk_counts = Counter(t["risk_level"] for t in txs)
     risk_distribution = [{"name": k, "value": v} for k, v in risk_counts.items()]
 
-    # 2. Top features les plus fréquentes dans les transactions à risque (MOYEN+)
     feature_fraud_freq = Counter()
-    feature_all_freq = Counter()
-    for t in txs:
-        rd = t.get("result_data")
-        if not rd or rd == "{}":
+    for tx in txs:
+        result_data = tx.get("result_data")
+        if not result_data or result_data == "{}":
             continue
         try:
-            result = json.loads(rd) if isinstance(rd, str) else rd
+            result = json.loads(result_data) if isinstance(result_data, str) else result_data
         except (json.JSONDecodeError, TypeError):
             continue
-        features = result.get("top_features", [])
-        for f in features:
-            fname = f.get("feature", "")
-            if not fname:
+        for feature in result.get("top_features", []):
+            feature_name = feature.get("feature", "")
+            if not feature_name:
                 continue
-            feature_all_freq[fname] += abs(f.get("shap_value", 0))
-            if t["risk_level"] in ("MOYEN", "ÉLEVÉ", "ELEVÉ", "CRITIQUE"):
-                feature_fraud_freq[fname] += abs(f.get("shap_value", 0))
+            if tx["risk_level"] in ("MOYEN", "ELEVÉ", "ÉLEVÉ", "CRITIQUE"):
+                feature_fraud_freq[feature_name] += abs(feature.get("shap_value", 0))
 
     top_fraud_features = [
-        {"feature": k, "total_impact": round(v, 3)}
-        for k, v in feature_fraud_freq.most_common(8)
+        {"feature": key, "total_impact": round(value, 3)}
+        for key, value in feature_fraud_freq.most_common(8)
     ]
 
-    # 3. Distribution par type de transaction
     type_counts = Counter()
     type_fraud = Counter()
-    for t in txs:
-        fd = t.get("form_data")
-        if not fd:
+    for tx in txs:
+        form_data = tx.get("form_data")
+        if not form_data:
             continue
         try:
-            form = json.loads(fd) if isinstance(fd, str) else fd
+            form = json.loads(form_data) if isinstance(form_data, str) else form_data
         except (json.JSONDecodeError, TypeError):
             continue
-        tt = form.get("transaction_type", "inconnu")
-        type_counts[tt] += 1
-        if t["risk_level"] in ("MOYEN", "ÉLEVÉ", "ELEVÉ", "CRITIQUE"):
-            type_fraud[tt] += 1
+        tx_type = form.get("transaction_type", "inconnu")
+        type_counts[tx_type] += 1
+        if tx["risk_level"] in ("MOYEN", "ELEVÉ", "ÉLEVÉ", "CRITIQUE"):
+            type_fraud[tx_type] += 1
 
     by_type = [
-        {"type": k, "total": type_counts[k], "risky": type_fraud.get(k, 0)}
-        for k in type_counts
+        {"type": key, "total": type_counts[key], "risky": type_fraud.get(key, 0)}
+        for key in type_counts
     ]
 
-    # 4. Distribution par catégorie marchand
-    cat_counts = Counter()
-    cat_fraud = Counter()
-    for t in txs:
-        fd = t.get("form_data")
-        if not fd:
+    category_counts = Counter()
+    category_fraud = Counter()
+    for tx in txs:
+        form_data = tx.get("form_data")
+        if not form_data:
             continue
         try:
-            form = json.loads(fd) if isinstance(fd, str) else fd
+            form = json.loads(form_data) if isinstance(form_data, str) else form_data
         except (json.JSONDecodeError, TypeError):
             continue
-        mc = form.get("merchant_category", "inconnu")
-        cat_counts[mc] += 1
-        if t["risk_level"] in ("MOYEN", "ÉLEVÉ", "ELEVÉ", "CRITIQUE"):
-            cat_fraud[mc] += 1
+        category = form.get("merchant_category", "inconnu")
+        category_counts[category] += 1
+        if tx["risk_level"] in ("MOYEN", "ELEVÉ", "ÉLEVÉ", "CRITIQUE"):
+            category_fraud[category] += 1
 
     by_category = [
-        {"category": k, "total": cat_counts[k], "risky": cat_fraud.get(k, 0)}
-        for k in cat_counts
+        {"category": key, "total": category_counts[key], "risky": category_fraud.get(key, 0)}
+        for key in category_counts
     ]
 
-    # 5. Distribution horaire
     hour_counts = defaultdict(lambda: {"total": 0, "risky": 0})
-    for t in txs:
-        fd = t.get("form_data")
-        if not fd:
+    for tx in txs:
+        form_data = tx.get("form_data")
+        if not form_data:
             continue
         try:
-            form = json.loads(fd) if isinstance(fd, str) else fd
+            form = json.loads(form_data) if isinstance(form_data, str) else form_data
         except (json.JSONDecodeError, TypeError):
             continue
-        h = int(form.get("hour", 0))
-        hour_counts[h]["total"] += 1
-        if t["risk_level"] in ("MOYEN", "ÉLEVÉ", "ELEVÉ", "CRITIQUE"):
-            hour_counts[h]["risky"] += 1
+        hour = int(form.get("hour", 0))
+        hour_counts[hour]["total"] += 1
+        if tx["risk_level"] in ("MOYEN", "ELEVÉ", "ÉLEVÉ", "CRITIQUE"):
+            hour_counts[hour]["risky"] += 1
 
     by_hour = [
-        {"hour": h, "total": v["total"], "risky": v["risky"]}
-        for h, v in sorted(hour_counts.items())
+        {"hour": hour, "total": values["total"], "risky": values["risky"]}
+        for hour, values in sorted(hour_counts.items())
     ]
 
-    # 6. Évolution temporelle des scores
     score_timeline = [
         {
-            "date": t["created_at"][:16],
-            "score": round(t["fraud_probability"] * 100, 1),
-            "risk": t["risk_level"],
-            "tx_id": t["transaction_id"],
+            "date": tx["created_at"][:16],
+            "score": round(tx["fraud_probability"] * 100, 1),
+            "risk": tx["risk_level"],
+            "tx_id": tx["transaction_id"],
         }
-        for t in reversed(txs)
+        for tx in reversed(txs)
     ]
 
-    # 7. Stats KPIs
-    avg_score = sum(t["fraud_probability"] for t in txs) / total
-    high_risk_count = sum(1 for t in txs if t["risk_level"] in ("ÉLEVÉ", "ELEVÉ", "CRITIQUE"))
+    avg_score = sum(tx["fraud_probability"] for tx in txs) / total
+    high_risk_count = sum(
+        1 for tx in txs if tx["risk_level"] in ("ELEVÉ", "ÉLEVÉ", "CRITIQUE")
+    )
 
     return {
         "total": total,

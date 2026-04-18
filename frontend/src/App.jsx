@@ -77,25 +77,26 @@ const App = () => {
   const [formData, setFormData] = useState({
     transaction_id: "TX_" + Math.random().toString(36).substr(2, 9).toUpperCase(),
     // ── Champs Critiques (Alidgnés avec le Modèle) ─────────────────────────
-    transaction_amount: 5000, 
-    transaction_type: "transfer",
-    merchant_category: "electronics",
+    transaction_amount: 250,
+    transaction_type: "purchase",
+    merchant_category: "grocery",
     payment_method: "bkash",
     card_type: "debit",
-    kyc_verified: false,
-    otp_used: false,
-    user_account_age_days: 30,
+    kyc_verified: true,
+    otp_used: true,
+    user_account_age_days: 365,
     txn_count_24h: 1,
-    txn_sum_24h: 5000,
-    time_since_last_txn: 480,
+    txn_sum_24h: 250,
+    time_since_last_txn: 720,
     is_new_city: 0,
     
     // ── Détails & Métadonnées (Contexte uniquement - Secondaire) ──────────
-    city: "Casablanca",
-    country: "Maroc",
-    currency: "MAD",
-    device_type: "Mobile App",
-    hour: 2,
+    avg_amount_30d: 220,
+    city: "Dhaka",
+    country: "Bangladesh",
+    currency: "BDT",
+    device_type: "mobile",
+    hour: 14,
     selected_model: "xgboost"
   });
 

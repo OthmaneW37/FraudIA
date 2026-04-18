@@ -32,9 +32,9 @@ from sklearn.preprocessing import OrdinalEncoder, StandardScaler
 # ── Constantes ──────────────────────────────────────────────────────────────
 
 RANDOM_STATE = 42
-SMOTE_SAMPLING_STRATEGY = 0.2   # Ratio souhaité minorité/majorité après SMOTE
-                                  # 0.2 = 20% de fraudes par rapport aux légitimes
-                                  # Le dataset brut a déjà ~9% de fraudes.
+SMOTE_SAMPLING_STRATEGY = 0.4   # Ratio souhaité minorité/majorité après SMOTE
+                                  # 0.4 = 40% de fraudes par rapport aux légitimes
+                                  # Le dataset brut a déjà ~9% de fraudes. (Ratio plus agressif)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 MODELS_DIR = PROJECT_ROOT / "models"
@@ -114,10 +114,8 @@ class FraudPreprocessor:
             df["hour_sin"] = np.sin(2 * np.pi * df["hour"] / 24)
             df["hour_cos"] = np.cos(2 * np.pi * df["hour"] / 24)
             
-        # 3. Log du montant (réduit l'impact des outliers)
-        df["log_amount"] = np.log1p(df["transaction_amount"])
-        
         return df
+
 
     # ── API publique ─────────────────────────────────────────────────────────
 

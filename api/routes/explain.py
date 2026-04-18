@@ -1,35 +1,33 @@
 """
-explain.py — Endpoints d'explication :
-  /explain/shap — Score + SHAP features (rapide, ~2-3s)
-  /explain/llm  — Explication LLM seule (lent, ~30-60s)  
-  /explain/     — Tout-en-un (legacy)
+explain.py - Endpoints d'explication.
 """
 
 from __future__ import annotations
 
 import os
 import time
+from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from loguru import logger
-from pydantic import BaseModel, Field
-from typing import List, Optional
+from pydantic import BaseModel
 
+from api.auth import get_current_user_optional
+from api.notifications import notify_fraud_alert
 from api.schemas import ExplanationResponse, RiskLevel, ShapFeature, TransactionInput
 
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "mistral")
 
 
-router = APIRouter(prefix="/explain", tags=["Explicabilité"])
+router = APIRouter(prefix="/explain", tags=["Explicabilite"])
 
 
 def get_full_service():
-    """Injection de dépendance — service complet (modèle + SHAP + LLM)."""
+    """Injection de dependance - service complet (modele + SHAP + LLM)."""
     from api.main import full_service
+
     return full_service
 
-
-# ── Schema pour la réponse SHAP (sans LLM) ──────────────────────────────────
 
 class ShapResponse(BaseModel):
     transaction_id: str
@@ -55,7 +53,6 @@ class LLMRequest(BaseModel):
     fraud_probability: float
     top_features: List[ShapFeature]
     threshold: float = 0.5
-    # Provider LLM : 'local' (Ollama Mistral) ou 'perplexity'
     llm_provider: str = "local"
 
 
@@ -67,37 +64,51 @@ class LLMResponse(BaseModel):
     processing_time_ms: float
 
 
-# ── Endpoint SHAP (rapide) ───────────────────────────────────────────────────
-
 @router.post("/shap", response_model=ShapResponse, summary="Score + SHAP (rapide)")
 def explain_shap(
     transaction: TransactionInput,
     service=Depends(get_full_service),
+    user: dict | None = Depends(get_current_user_optional),
 ) -> ShapResponse:
     start = time.perf_counter()
+    transaction_data = transaction.model_dump()
+
     try:
-        result = service.predict_and_shap(transaction.model_dump(), model_name=transaction.selected_model)
-    except Exception as e:
-        logger.error(f"Erreur SHAP [{transaction.transaction_id}]: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        result = service.predict_and_shap(transaction_data, model_name=transaction.selected_model)
+    except Exception as exc:
+        logger.error(f"Erreur SHAP [{transaction.transaction_id}]: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     elapsed_ms = (time.perf_counter() - start) * 1000
     fraud_prob = result["fraud_probability"]
+    threshold = result["threshold"]
+    is_fraud = fraud_prob >= threshold
     risk = _compute_risk_level(fraud_prob)
+    top_features = [ShapFeature(**feature) for feature in result["top_features"]]
+
+    if is_fraud:
+        notify_fraud_alert(
+            user=user,
+            transaction=transaction_data,
+            is_fraud=is_fraud,
+            fraud_probability=fraud_prob,
+            threshold=threshold,
+            risk_level=risk.value,
+            model_name=transaction.selected_model,
+            top_features=result["top_features"],
+        )
 
     return ShapResponse(
         transaction_id=transaction.transaction_id,
         fraud_probability=fraud_prob,
-        is_fraud=fraud_prob >= result["threshold"],
+        is_fraud=is_fraud,
         risk_level=risk,
-        top_features=[ShapFeature(**f) for f in result["top_features"]],
-        threshold_used=result["threshold"],
+        top_features=top_features,
+        threshold_used=threshold,
         model_name=transaction.selected_model,
         processing_time_ms=round(elapsed_ms, 2),
     )
 
-
-# ── Endpoint LLM (lent) ─────────────────────────────────────────────────────
 
 @router.post("/llm", response_model=LLMResponse, summary="Explication LLM seule")
 def explain_llm(
@@ -110,7 +121,7 @@ def explain_llm(
 
     try:
         tx_dict = req.model_dump()
-        features_raw = [f.model_dump() for f in req.top_features]
+        features_raw = [feature.model_dump() for feature in req.top_features]
 
         explanation = service.generate_explanation(
             transaction=tx_dict,
@@ -119,9 +130,9 @@ def explain_llm(
             threshold=req.threshold,
             llm_provider=provider,
         )
-    except Exception as e:
-        logger.error(f"Erreur LLM [{req.transaction_id}]: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as exc:
+        logger.error(f"Erreur LLM [{req.transaction_id}]: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     elapsed_ms = (time.perf_counter() - start) * 1000
     return LLMResponse(
@@ -138,56 +149,64 @@ def explain_llm(
     response_model=ExplanationResponse,
     summary="Analyser + expliquer une transaction",
     description=(
-        "Retourne le score de fraude **et** une explication en langage naturel "
-        "générée par le LLM local (Ollama). Plus lent que /predict (~2-10s)."
+        "Retourne le score de fraude et une explication en langage naturel "
+        "generee par le LLM. Plus lent que /predict."
     ),
 )
 def explain_fraud(
     transaction: TransactionInput,
     service=Depends(get_full_service),
+    user: dict | None = Depends(get_current_user_optional),
 ) -> ExplanationResponse:
-    """
-    Endpoint d'explication complète.
-
-    - Input  : TransactionInput
-    - Output : ExplanationResponse (score + SHAP features + texte LLM)
-    - SLA    : < 15s (temps de génération LLM local)
-    """
     start = time.perf_counter()
+    transaction_data = transaction.model_dump()
 
     try:
-        result = service.predict_and_explain(transaction.model_dump(), model_name=transaction.selected_model)
-    except Exception as e:
-        logger.error(f"Erreur explication [{transaction.transaction_id}]: {e}")
+        result = service.predict_and_explain(transaction_data, model_name=transaction.selected_model)
+    except Exception as exc:
+        logger.error(f"Erreur explication [{transaction.transaction_id}]: {exc}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erreur lors de l'explication : {str(e)}",
-        )
+            detail=f"Erreur lors de l'explication : {exc}",
+        ) from exc
 
     elapsed_ms = (time.perf_counter() - start) * 1000
     fraud_prob = result["fraud_probability"]
+    threshold = result["threshold"]
+    is_fraud = fraud_prob >= threshold
     risk = _compute_risk_level(fraud_prob)
 
-    # Convertir les top features en objets Pydantic
     shap_features = [
         ShapFeature(
-            feature=f["feature"],
-            shap_value=f["shap_value"],
-            direction=f["direction"],
-            impact=f["impact"],
+            feature=feature["feature"],
+            shap_value=feature["shap_value"],
+            direction=feature["direction"],
+            impact=feature["impact"],
         )
-        for f in result["top_features"]
+        for feature in result["top_features"]
     ]
+
+    if is_fraud:
+        notify_fraud_alert(
+            user=user,
+            transaction=transaction_data,
+            is_fraud=is_fraud,
+            fraud_probability=fraud_prob,
+            threshold=threshold,
+            risk_level=risk.value,
+            model_name=transaction.selected_model,
+            top_features=result["top_features"],
+        )
 
     logger.info(
         f"[{transaction.transaction_id}] proba={fraud_prob:.3f} "
-        f"risk={risk} ({elapsed_ms:.1f}ms)"
+        f"risk={risk.value} ({elapsed_ms:.1f}ms)"
     )
 
     return ExplanationResponse(
         transaction_id=transaction.transaction_id,
         fraud_probability=fraud_prob,
-        is_fraud=fraud_prob >= result["threshold"],
+        is_fraud=is_fraud,
         risk_level=risk,
         top_features=shap_features,
         explanation=result["explanation"],
@@ -200,9 +219,8 @@ def explain_fraud(
 def _compute_risk_level(probability: float) -> RiskLevel:
     if probability >= 0.9:
         return RiskLevel.CRITIQUE
-    elif probability >= 0.7:
+    if probability >= 0.7:
         return RiskLevel.ELEVE
-    elif probability >= 0.4:
+    if probability >= 0.4:
         return RiskLevel.MOYEN
-    else:
-        return RiskLevel.FAIBLE
+    return RiskLevel.FAIBLE
