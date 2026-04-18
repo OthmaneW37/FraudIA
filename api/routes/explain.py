@@ -7,6 +7,7 @@ explain.py — Endpoints d'explication :
 
 from __future__ import annotations
 
+import os
 import time
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -15,6 +16,8 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 
 from api.schemas import ExplanationResponse, RiskLevel, ShapFeature, TransactionInput
+
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "mistral")
 
 
 router = APIRouter(prefix="/explain", tags=["Explicabilité"])
@@ -52,13 +55,15 @@ class LLMRequest(BaseModel):
     fraud_probability: float
     top_features: List[ShapFeature]
     threshold: float = 0.5
+    # Provider LLM : 'local' (Ollama Mistral) ou 'perplexity'
+    llm_provider: str = "local"
 
 
 class LLMResponse(BaseModel):
     transaction_id: str
     explanation: str
     llm_model: str
-    llm_provider: str = "perplexity"
+    llm_provider: str = "local"
     processing_time_ms: float
 
 
@@ -100,7 +105,8 @@ def explain_llm(
     service=Depends(get_full_service),
 ) -> LLMResponse:
     start = time.perf_counter()
-    model_used = getattr(service.agent, "model", "sonar")
+    provider = req.llm_provider if req.llm_provider in ("local", "perplexity") else "local"
+    model_used = OLLAMA_MODEL if provider == "local" else getattr(service.agent, "model", "sonar")
 
     try:
         tx_dict = req.model_dump()
@@ -111,6 +117,7 @@ def explain_llm(
             fraud_probability=req.fraud_probability,
             top_features=features_raw,
             threshold=req.threshold,
+            llm_provider=provider,
         )
     except Exception as e:
         logger.error(f"Erreur LLM [{req.transaction_id}]: {e}")
@@ -121,7 +128,7 @@ def explain_llm(
         transaction_id=req.transaction_id,
         explanation=explanation,
         llm_model=model_used,
-        llm_provider="perplexity",
+        llm_provider=provider,
         processing_time_ms=round(elapsed_ms, 2),
     )
 

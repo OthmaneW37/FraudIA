@@ -58,17 +58,17 @@ class DataLoader:
 
     def load(self) -> pd.DataFrame:
         """
-        Charge le CSV en mémoire avec les dtypes optimisés.
+        Charge le dataset en mémoire et ajoute le Feature Engineering Séquentiel.
 
         Returns
         -------
         pd.DataFrame
-            Dataset complet non filtré.
+            Dataset complet enrichi avec les features de vélocité.
         """
         if not self.data_path.exists():
             raise FileNotFoundError(
                 f"Dataset introuvable : {self.data_path.resolve()}\n"
-                "Vérifier que improved_fraud_dataset.csv est dans data/raw/"
+                "Vérifier que improved_fraud_dataset.zip est dans data/raw/"
             )
 
         logger.info(f"Chargement du dataset : {self.data_path} ...")
@@ -79,8 +79,66 @@ class DataLoader:
             low_memory=False,
         )
 
+        # ── Feature Engineering Séquentiel ──────────────────────────────────
+        if "transaction_timestamp" in self._df.columns and "user_id" in self._df.columns:
+            logger.info("Calcul des features séquentielles (vélocité)...")
+            self._df = self.add_sequential_features(self._df)
+            logger.info("Features séquentielles ajoutées ✓")
+        else:
+            logger.warning("Colonnes 'transaction_timestamp' ou 'user_id' manquantes — features séquentielles ignorées")
+
         self._log_basic_stats()
         return self._df
+
+    @staticmethod
+    def add_sequential_features(df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Ajoute des features de vélocité temporelle par utilisateur :
+          - time_since_last_txn : Minutes depuis la dernière transaction du même utilisateur.
+          - txn_count_24h       : Nombre de transactions dans les 24h précédentes.
+          - txn_sum_24h         : Somme des montants dans les 24h précédentes.
+          - is_new_city         : 1 si c'est la première transaction dans cette ville.
+
+        Ces features permettent à XGBoost de détecter les comportements de fraude
+        en rafale (ex: 10 petits paiements en quelques secondes après vol de carte).
+        """
+        df = df.copy()
+        df["transaction_timestamp"] = pd.to_datetime(df["transaction_timestamp"])
+        df = df.sort_values(["user_id", "transaction_timestamp"])
+
+        # 1. Temps depuis la dernière transaction (en minutes)
+        df["time_since_last_txn"] = (
+            df.groupby("user_id")["transaction_timestamp"]
+            .diff()
+            .dt.total_seconds()
+            .fillna(-1.0)
+            / 60.0
+        )
+
+        # 2. Fenêtres glissantes 24h (nécessite l'index temporel)
+        df_idx = df.set_index("transaction_timestamp")
+        df["txn_count_24h"] = (
+            df_idx.groupby("user_id")["transaction_amount"]
+            .rolling("24h")
+            .count()
+            .reset_index(level=0, drop=True)
+            .values
+        )
+        df["txn_sum_24h"] = (
+            df_idx.groupby("user_id")["transaction_amount"]
+            .rolling("24h")
+            .sum()
+            .reset_index(level=0, drop=True)
+            .values
+        )
+
+        # 3. Première transaction dans cette ville pour cet utilisateur
+        df["is_new_city"] = (~df.duplicated(subset=["user_id", "city"])).astype(int)
+
+        return df
+
+    # ── Helpers ─────────────────────────────────────────
+
 
     @staticmethod
     def _get_dtype_hints() -> dict[str, str]:

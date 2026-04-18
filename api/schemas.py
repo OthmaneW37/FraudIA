@@ -52,25 +52,37 @@ class RiskLevel(str, Enum):
 class TransactionInput(BaseModel):
     """
     Données d'une transaction envoyée à l'API pour analyse.
-    Tous les champs sont validés automatiquement par Pydantic.
+    Correspond aux colonnes réelles du dataset Bangladesh Fraud Detection.
     """
-    transaction_id:   str   = Field(..., description="Identifiant unique de la transaction")
-    transaction_amount: float = Field(..., gt=0, description="Montant de la transaction (doit être > 0)")
-    currency:         str   = Field(default="MAD", max_length=3, description="Code devise ISO 4217")
-    hour:             int   = Field(..., ge=0, le=23, description="Heure de la transaction (0-23)")
-    minute:           int   = Field(default=0, ge=0, le=59)
-    transaction_type: TransactionType = Field(..., description="Type de transaction")
-    merchant_category: str  = Field(..., description="Catégorie du marchand")
-    city:             str   = Field(..., description="Ville de la transaction")
-    country:          str   = Field(..., description="Pays de la transaction")
-    device_type:      str   = Field(..., description="Type de device")
-    kyc_verified:     bool  = Field(..., description="Le KYC est-il vérifié ? (booléen)")
-    otp_used:         bool  = Field(..., description="L'OTP a-t-il été utilisé ? (booléen)")
-    selected_model:    str   = Field(default="xgboost", description="Modèle à utiliser pour l'analyse")
+    transaction_id:        str   = Field(..., description="Identifiant unique de la transaction")
+    transaction_amount:    float = Field(..., gt=0, description="Montant en BDT")
+    currency:              str   = Field(default="BDT", max_length=3)
+    hour:                  int   = Field(..., ge=0, le=23)
+    day_of_week:           Optional[int]   = Field(None, ge=0, le=6)
+    transaction_type:      str   = Field(..., description="purchase | withdrawal | transfer")
+    merchant_category:     str   = Field(..., description="grocery | fashion | electronics | travel")
+    city:                  str   = Field(..., description="Dhaka | Chittagong | Khulna | Rajshahi")
+    country:               str   = Field(default="Bangladesh")
+    device_type:           str   = Field(..., description="mobile | desktop | tablet")
+    payment_method:        Optional[str]   = Field(None, description="bkash | nagad | card | bank")
+    card_type:             Optional[str]   = Field(None, description="debit | credit")
+    operating_system:      Optional[str]   = Field(None, description="Android | Windows | iOS")
+    browser:               Optional[str]   = Field(None, description="Chrome | Edge | Safari")
+    kyc_verified:          bool  = Field(...)
+    otp_used:              bool  = Field(...)
+    user_account_age_days: Optional[float] = Field(None, ge=0)
+    selected_model:        str   = Field(default="xgboost")
 
-    # Features optionnelles (historique client — enrichissement)
-    avg_amount_30d:   Optional[float] = Field(None, ge=0, description="Montant moyen sur 30j")
-    txn_count_today:  Optional[int]   = Field(None, ge=0, description="Nombre de transactions aujourd'hui")
+    # Features séquentielles (vélocité temporelle)
+    txn_count_24h:         Optional[float] = Field(None, ge=0)
+    txn_sum_24h:           Optional[float] = Field(None, ge=0)
+    time_since_last_txn:   Optional[float] = Field(None)
+    is_new_city:           Optional[int]   = Field(None, ge=0, le=1)
+
+    # Champs legacy — conservés pour compatibilité
+    avg_amount_30d:        Optional[float] = Field(None, ge=0)
+    txn_count_today:       Optional[int]   = Field(None, ge=0)
+    minute:                Optional[int]   = Field(None, ge=0, le=59)
 
     @field_validator("currency")
     @classmethod
@@ -80,20 +92,24 @@ class TransactionInput(BaseModel):
     model_config = {
         "json_schema_extra": {
             "example": {
-                "transaction_id":     "TX_2024_001",
-                "transaction_amount": 15000.0,
-                "currency":           "MAD",
-                "hour":               2,
-                "minute":             37,
-                "transaction_type":   "transfer",
-                "merchant_category":  "Virement international",
-                "city":               "Rabat",
-                "country":            "Maroc",
-                "device_type":        "device_inconnu_x7",
-                "kyc_verified":       False,
-                "otp_used":           False,
-                "avg_amount_30d":     500.0,
-                "txn_count_today":    12,
+                "transaction_id":        "TX_2024_BD_001",
+                "transaction_amount":    5000.0,
+                "currency":              "BDT",
+                "hour":                  2,
+                "transaction_type":      "transfer",
+                "merchant_category":     "electronics",
+                "city":                  "Dhaka",
+                "country":               "Bangladesh",
+                "device_type":           "mobile",
+                "payment_method":        "bkash",
+                "card_type":             "debit",
+                "kyc_verified":          False,
+                "otp_used":              False,
+                "user_account_age_days": 30,
+                "txn_count_24h":         8,
+                "txn_sum_24h":           40000,
+                "time_since_last_txn":   5,
+                "is_new_city":           1,
             }
         }
     }
@@ -134,8 +150,10 @@ class ExplanationResponse(BaseModel):
 
 
 class HealthResponse(BaseModel):
-    """Réponse de l'endpoint /health."""
+    """Réponse de l'endpoint /health avec métriques du modèle."""
     status:       str   # "healthy" | "degraded" | "unhealthy"
     model_loaded: bool
     llm_online:   bool
-    version:      str = "1.0.0"
+    version:      str = "2.0.0"
+    # Métriques de performance du modèle (affichées sur le dashboard)
+    model_metrics: Optional[Dict] = Field(default=None, description="Métriques de performance XGBoost")

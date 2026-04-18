@@ -116,6 +116,7 @@ class ModelTrainer:
         y_train: np.ndarray,
         X_val: Optional[np.ndarray] = None,
         y_val: Optional[np.ndarray] = None,
+        custom_params: Optional[Dict[str, Any]] = None,
     ) -> "ModelTrainer":
         """
         Entraîne le modèle.
@@ -123,29 +124,35 @@ class ModelTrainer:
         Pour XGBoost : utilise X_val/y_val pour l'early stopping afin
         d'éviter l'overfitting sans fixer arbitrairement n_estimators.
 
+        Parameters
+        ----------
+        custom_params : dict, optional
+            Paramètres personnalisés (ex: fournis par Optuna) qui écrasent la config par défaut.
+
         Returns self pour le method chaining.
         """
         logger.info(f"Entraînement : {self.model_name} ...")
 
+        # Appliquer les paramètres custom (Optuna) si fournis
+        active_config = {**self.config, **(custom_params or {})}
+
         if self.model_name == "logistic_regression":
-            self._model = LogisticRegression(**self.config)
+            self._model = LogisticRegression(**active_config)
             self._model.fit(X_train, y_train)
 
         elif self.model_name == "random_forest":
-            self._model = RandomForestClassifier(**self.config)
+            self._model = RandomForestClassifier(**active_config)
             self._model.fit(X_train, y_train)
 
         elif self.model_name == "xgboost":
-            # Calcul dynamique de scale_pos_weight selon le déséquilibre réel
-            n_neg = int((y_train == 0).sum())
-            n_pos = int((y_train == 1).sum())
-            scale_pos_weight = n_neg / max(n_pos, 1)
-            logger.info(f"  scale_pos_weight = {scale_pos_weight:.1f} (n_neg/n_pos)")
+            # Calcul dynamique de scale_pos_weight si pas déjà dans les params
+            if "scale_pos_weight" not in active_config:
+                n_neg = int((y_train == 0).sum())
+                n_pos = int((y_train == 1).sum())
+                active_config["scale_pos_weight"] = n_neg / max(n_pos, 1)
+            logger.info(f"  scale_pos_weight = {active_config['scale_pos_weight']:.1f}")
 
-            self._model = XGBClassifier(
-                **self.config,
-                scale_pos_weight=scale_pos_weight,
-            )
+            self._model = XGBClassifier(**active_config)
 
             # Early stopping si val set disponible
             fit_params: Dict[str, Any] = {}
@@ -157,12 +164,13 @@ class ModelTrainer:
 
         elif self.model_name == "isolation_forest":
             # Non supervisé : pas besoin de y_train
-            self._model = IsolationForest(**self.config)
+            self._model = IsolationForest(**active_config)
             self._model.fit(X_train)
             logger.info("  Isolation Forest entraîné (non supervisé)")
 
         logger.success(f"Modèle {self.model_name} entraîné ✓")
         return self
+
 
     # ── Prédiction ───────────────────────────────────────────────────────────
 

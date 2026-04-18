@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  ShieldCheck, 
-  LayoutDashboard, 
-  Activity, 
-  Settings, 
-  LogOut, 
-  Menu, 
+import {
+  ShieldCheck,
+  LayoutDashboard,
+  Activity,
+  Settings,
+  LogOut,
+  Menu,
   X,
   CreditCard,
   Target,
@@ -45,7 +45,7 @@ const App = () => {
 
   const [activePage, setActivePage] = useState('landing');
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  
+
   // Analysis State
   const [isLoading, setIsLoading] = useState(false);
   const [analysisType, setAnalysisType] = useState(null);
@@ -55,7 +55,7 @@ const App = () => {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [llmLoading, setLlmLoading] = useState(false);
   const [llmProvider, setLlmProvider] = useState('perplexity');
-  
+
   // Modals & Navigation
   const [isNewAnalysisModalOpen, setIsNewAnalysisModalOpen] = useState(false);
   const [selectedTx, setSelectedTx] = useState(null);
@@ -76,19 +76,26 @@ const App = () => {
 
   const [formData, setFormData] = useState({
     transaction_id: "TX_" + Math.random().toString(36).substr(2, 9).toUpperCase(),
-    transaction_amount: 15000,
-    currency: "MAD",
-    hour: 2,
-    minute: 0,
+    // ── Champs Critiques (Alidgnés avec le Modèle) ─────────────────────────
+    transaction_amount: 5000, 
     transaction_type: "transfer",
-    merchant_category: "crypto",
+    merchant_category: "electronics",
+    payment_method: "bkash",
+    card_type: "debit",
+    kyc_verified: false,
+    otp_used: false,
+    user_account_age_days: 30,
+    txn_count_24h: 1,
+    txn_sum_24h: 5000,
+    time_since_last_txn: 480,
+    is_new_city: 0,
+    
+    // ── Détails & Métadonnées (Contexte uniquement - Secondaire) ──────────
     city: "Casablanca",
     country: "Maroc",
+    currency: "MAD",
     device_type: "Mobile App",
-    kyc_verified: true,
-    otp_used: false,
-    avg_amount_30d: 1000,
-    txn_count_today: 2,
+    hour: 2,
     selected_model: "xgboost"
   });
 
@@ -153,20 +160,20 @@ const App = () => {
     try {
       const txs = await api.getTransactions();
       setUserTransactions(txs);
-    } catch (_) {}
+    } catch (_) { }
   }, []);
 
   const handleAnalysis = useCallback(async (type, customData = null) => {
     const currentFormData = customData || formDataRef.current;
-    
+
     // Si on lance depuis la modale, on ferme la modale et on navigue vers detail
     setIsNewAnalysisModalOpen(false);
-    setSelectedTx({ 
-       id: currentFormData.transaction_id, 
-       raw: currentFormData 
+    setSelectedTx({
+      id: currentFormData.transaction_id,
+      raw: currentFormData
     });
     setActivePage('detail');
-    
+
     setIsLoading(true);
     setAnalysisType(type);
     setResult(null);
@@ -207,12 +214,12 @@ const App = () => {
             threshold: shapData.threshold_used,
             llm_provider: llmProviderRef.current,
           });
-          const fullResult = { 
-            ...shapData, 
-            explanation: llmData.explanation, 
+          const fullResult = {
+            ...shapData,
+            explanation: llmData.explanation,
             llm_model: llmData.llm_model,
             llm_provider: llmData.llm_provider || 'local',
-            processing_time_ms: shapData.processing_time_ms + llmData.processing_time_ms 
+            processing_time_ms: shapData.processing_time_ms + llmData.processing_time_ms
           };
           setResult(fullResult);
 
@@ -224,7 +231,7 @@ const App = () => {
                 result_data: fullResult,
               });
               reloadTransactions();
-            } catch (_) {}
+            } catch (_) { }
           }
         } catch (llmErr) {
           console.warn('LLM explanation failed', llmErr);
@@ -331,7 +338,7 @@ const App = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `FraudIA_${tx.transaction_id}_${new Date().toISOString().slice(0,10)}.csv`;
+      a.download = `FraudIA_${tx.transaction_id}_${new Date().toISOString().slice(0, 10)}.csv`;
       a.style.display = 'none';
       document.body.appendChild(a);
       a.click();
@@ -452,7 +459,7 @@ const App = () => {
             doc.text(`FraudIA - Page ${i}/${pages}`, pageW / 2, doc.internal.pageSize.getHeight() - 8, { align: 'center' });
           }
 
-          doc.save(`FraudIA_${tx.transaction_id}_${new Date().toISOString().slice(0,10)}.pdf`);
+          doc.save(`FraudIA_${tx.transaction_id}_${new Date().toISOString().slice(0, 10)}.pdf`);
         });
       });
     }
@@ -498,7 +505,7 @@ const App = () => {
           <ShieldCheck className="w-7 h-7 text-primary" />
           <span className="text-xl font-bold tracking-tight text-content">FraudIA</span>
         </div>
-        <button 
+        <button
           onClick={() => user ? setActivePage('dashboard') : setActivePage('login')}
           className="btn-primary text-sm font-semibold"
         >
@@ -508,20 +515,20 @@ const App = () => {
 
       <main className="flex-1 flex flex-col justify-center items-center px-6 py-20">
         <div className="max-w-3xl mx-auto text-center">
-          <motion.h1 
+          <motion.h1
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}
             className="text-5xl md:text-7xl font-serif text-content leading-tight mb-6"
           >
             Chaque alerte mérite une <span className="text-primary italic">explication.</span>
           </motion.h1>
-          <motion.p 
+          <motion.p
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.1 }}
             className="text-lg md:text-xl text-content-muted mb-12 max-w-2xl mx-auto"
           >
             Passez de la détection "boîte noire" à l'investigation IA transparente. Une plateforme analytique conçue pour les équipes de lutte contre la fraude financière.
           </motion.p>
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.6, delay: 0.2 }}>
-            <button 
+            <button
               onClick={() => user ? setActivePage('dashboard') : setActivePage('login')}
               className="bg-content text-white px-8 py-4 rounded-full font-medium text-lg hover:bg-content/90 transition-transform hover:scale-105 active:scale-95 shadow-soft flex items-center gap-2 mx-auto"
             >
@@ -529,14 +536,14 @@ const App = () => {
             </button>
           </motion.div>
 
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.4 }}
             className="mt-24 grid grid-cols-1 md:grid-cols-3 gap-6"
           >
             {[
-              { label: "Transactions Analysées", val: "24.5M", icon: Activity },
-              { label: "Fraudes Détectées", val: "142k", icon: Target },
-              { label: "Précision Modèle", val: "99.4%", icon: Zap }
+              { label: "Transactions Analysées", val: health.model_metrics ? (health.model_metrics.training_samples / 1000000).toFixed(1) + "M+" : "24.5M", icon: Activity },
+              { label: "Vitesse d'Inférence", val: "2ms", icon: Target },
+              { label: "Précision Modèle", val: health.model_metrics ? (health.model_metrics.accuracy * 100).toFixed(1) + "%" : "99.4%", icon: Zap }
             ].map((stat, i) => (
               <div key={i} className="card p-6 flex flex-col items-center text-center">
                 <stat.icon className="w-6 h-6 text-primary mb-4" />
@@ -562,21 +569,34 @@ const App = () => {
             <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-content-muted">
               <span className="text-content pb-1 border-b-2 border-primary cursor-pointer">Opérations</span>
               <span onClick={() => setActivePage('analytics')} className="hover:text-content transition-colors cursor-pointer">Analytiques</span>
-              <span className="hover:text-content transition-colors cursor-pointer">Modèles</span>
+              {health.model_metrics && (
+                <div className="flex items-center gap-4 ml-4 px-4 py-1.5 bg-surface border border-border rounded-full shadow-inner">
+                   <div className="flex flex-col">
+                      <span className="text-[9px] font-bold text-content-muted uppercase leading-none">Accuracy</span>
+                      <span className="text-xs font-mono font-bold text-success">{(health.model_metrics.accuracy * 100).toFixed(1)}%</span>
+                   </div>
+                   <div className="w-px h-6 bg-border"></div>
+                   <div className="flex flex-col">
+                      <span className="text-[9px] font-bold text-content-muted uppercase leading-none">AUC-PR (Banque)</span>
+                      <span className="text-xs font-mono font-bold text-primary">{(health.model_metrics.auc_pr).toFixed(2)}</span>
+                   </div>
+                </div>
+              )}
             </nav>
           </div>
           <div className="flex items-center gap-4">
+
             <div className={`flex items-center gap-2 text-xs font-bold uppercase ${health.status === 'healthy' ? 'text-success' : 'text-danger'}`}>
               <div className={`w-2 h-2 rounded-full ${health.status === 'healthy' ? 'bg-success' : 'bg-danger animate-pulse'}`}></div>
               {health.status === 'healthy' ? 'API Active' : 'API Injoignable'}
             </div>
-            <button 
+            <button
               onClick={() => setIsNewAnalysisModalOpen(true)}
               className="btn-primary flex items-center gap-2 text-sm"
             >
               <Plus className="w-4 h-4" /> Nouvelle Analyse
             </button>
-            <button 
+            <button
               onClick={() => batchFileRef.current?.click()}
               className="flex items-center gap-2 text-sm px-3 py-2 border border-border rounded-lg font-medium text-content hover:bg-surface transition-colors"
             >
@@ -595,9 +615,9 @@ const App = () => {
                   <p className="text-xs font-bold text-content">{user.full_name}</p>
                   <p className="text-[10px] text-content-muted">{user.email}</p>
                 </div>
-                <button 
+                <button
                   onClick={handleLogout}
-                  className="p-2 hover:bg-danger-light rounded-lg transition-colors text-content-muted hover:text-danger" 
+                  className="p-2 hover:bg-danger-light rounded-lg transition-colors text-content-muted hover:text-danger"
                   title="Déconnexion"
                 >
                   <LogOut className="w-4 h-4" />
@@ -615,11 +635,10 @@ const App = () => {
             <p className="text-content-muted text-sm">Historique de vos transactions analysées — données cloisonnées par analyste.</p>
           </div>
           <div className="flex gap-2">
-            <button 
+            <button
               onClick={() => setShowFilters(f => !f)}
-              className={`px-3 py-1.5 border rounded-md text-sm font-medium flex items-center gap-2 transition-colors ${
-                showFilters ? 'border-primary bg-primary/5 text-primary' : 'border-border text-content hover:bg-surface'
-              }`}
+              className={`px-3 py-1.5 border rounded-md text-sm font-medium flex items-center gap-2 transition-colors ${showFilters ? 'border-primary bg-primary/5 text-primary' : 'border-border text-content hover:bg-surface'
+                }`}
             >
               <Filter className="w-4 h-4" /> Filtrer
               {(filterRisk !== 'all' || filterModel !== 'all' || filterSearch) && (
@@ -702,113 +721,113 @@ const App = () => {
               return true;
             });
             const hasActiveFilter = filterRisk !== 'all' || filterModel !== 'all' || filterSearch;
-          return filtered.length === 0 ? (
-            <div className="p-12 text-center">
-              <Activity className="w-10 h-10 text-border mx-auto mb-4" />
-              {hasActiveFilter ? (
-                <>
-                  <p className="text-content-muted text-sm">Aucune transaction ne correspond à vos filtres.</p>
-                  <button onClick={() => { setFilterRisk('all'); setFilterModel('all'); setFilterSearch(''); }} className="text-primary text-xs mt-2 hover:underline">Réinitialiser les filtres</button>
-                </>
-              ) : (
-                <>
-                  <p className="text-content-muted text-sm">Aucune analyse effectuée pour l'instant.</p>
-                  <p className="text-content-muted text-xs mt-1">Cliquez sur "Nouvelle Analyse" pour commencer.</p>
-                </>
-              )}
-            </div>
-          ) : (
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-border bg-surface/50 text-xs font-bold text-content-muted uppercase tracking-widest">
-                <th className="p-4 font-medium">ID Transaction</th>
-                <th className="p-4 font-medium">Date</th>
-                <th className="p-4 font-medium">Modèle</th>
-                <th className="p-4 font-medium">Score</th>
-                <th className="p-4 font-medium">État</th>
-                <th className="p-4 font-medium text-right">Statut</th>
-                <th className="p-4 font-medium w-10"></th>
-                <th className="p-4 font-medium w-10"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((tx) => {
-                const riskBadge = tx.risk_level === 'CRITIQUE' || tx.risk_level === 'ELEVÉ' || tx.is_fraud
-                  ? <span className="badge badge-danger">{tx.risk_level}</span>
-                  : tx.risk_level === 'MOYEN'
-                  ? <span className="badge badge-warning">{tx.risk_level}</span>
-                  : <span className="badge badge-success">{tx.risk_level}</span>;
+            return filtered.length === 0 ? (
+              <div className="p-12 text-center">
+                <Activity className="w-10 h-10 text-border mx-auto mb-4" />
+                {hasActiveFilter ? (
+                  <>
+                    <p className="text-content-muted text-sm">Aucune transaction ne correspond à vos filtres.</p>
+                    <button onClick={() => { setFilterRisk('all'); setFilterModel('all'); setFilterSearch(''); }} className="text-primary text-xs mt-2 hover:underline">Réinitialiser les filtres</button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-content-muted text-sm">Aucune analyse effectuée pour l'instant.</p>
+                    <p className="text-content-muted text-xs mt-1">Cliquez sur "Nouvelle Analyse" pour commencer.</p>
+                  </>
+                )}
+              </div>
+            ) : (
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-border bg-surface/50 text-xs font-bold text-content-muted uppercase tracking-widest">
+                    <th className="p-4 font-medium">ID Transaction</th>
+                    <th className="p-4 font-medium">Date</th>
+                    <th className="p-4 font-medium">Modèle</th>
+                    <th className="p-4 font-medium">Score</th>
+                    <th className="p-4 font-medium">État</th>
+                    <th className="p-4 font-medium text-right">Statut</th>
+                    <th className="p-4 font-medium w-10"></th>
+                    <th className="p-4 font-medium w-10"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((tx) => {
+                    const riskBadge = tx.risk_level === 'CRITIQUE' || tx.risk_level === 'ELEVÉ' || tx.is_fraud
+                      ? <span className="badge badge-danger">{tx.risk_level}</span>
+                      : tx.risk_level === 'MOYEN'
+                        ? <span className="badge badge-warning">{tx.risk_level}</span>
+                        : <span className="badge badge-success">{tx.risk_level}</span>;
 
-                const annotationBadge = tx.annotation === 'frauduleuse'
-                  ? <span className="inline-flex items-center gap-1 text-xs font-semibold text-danger"><XOctagon className="w-3 h-3" /> Fraude</span>
-                  : tx.annotation === 'valide'
-                  ? <span className="inline-flex items-center gap-1 text-xs font-semibold text-success"><CheckCircle2 className="w-3 h-3" /> Valide</span>
-                  : <span className="inline-flex items-center gap-1 text-xs text-content-muted"><HelpCircle className="w-3 h-3" /> —</span>;
+                    const annotationBadge = tx.annotation === 'frauduleuse'
+                      ? <span className="inline-flex items-center gap-1 text-xs font-semibold text-danger"><XOctagon className="w-3 h-3" /> Fraude</span>
+                      : tx.annotation === 'valide'
+                        ? <span className="inline-flex items-center gap-1 text-xs font-semibold text-success"><CheckCircle2 className="w-3 h-3" /> Valide</span>
+                        : <span className="inline-flex items-center gap-1 text-xs text-content-muted"><HelpCircle className="w-3 h-3" /> —</span>;
 
-                return (
-                <tr 
-                  key={tx.id} 
-                  onClick={() => startAnalysisFromHistory(tx)}
-                  className="border-b border-border hover:bg-surface/50 transition-colors cursor-pointer group"
-                >
-                  <td className="p-4 font-mono text-sm font-medium text-content">{tx.transaction_id}</td>
-                  <td className="p-4 text-sm text-content-muted">{new Date(tx.created_at).toLocaleString('fr-FR', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</td>
-                  <td className="p-4 text-sm text-content-muted uppercase">{tx.model_name}</td>
-                  <td className="p-4 text-sm font-mono text-content tabular-nums">{(tx.fraud_probability * 100).toFixed(1)}%</td>
-                  <td className="p-4">{annotationBadge}</td>
-                  <td className="p-4 text-right">
-                    <div className="flex items-center justify-end gap-3">
-                       {riskBadge}
-                       <ChevronRight className="w-4 h-4 text-border group-hover:text-primary transition-colors" />
-                    </div>
-                  </td>
-                  <td className="p-4 relative">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setExportDropdownTx(exportDropdownTx === tx.id ? null : tx.id); }}
-                      className="p-1.5 rounded-md hover:bg-surface text-content-muted hover:text-primary transition-colors"
-                      title="Télécharger"
-                    >
-                      <Download className="w-4 h-4" />
-                    </button>
-                    {exportDropdownTx === tx.id && (
-                      <div className="absolute right-4 top-12 z-30 bg-white border border-border rounded-lg shadow-lg py-1 min-w-[140px]">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); exportTransaction(tx, 'pdf'); }}
-                          className="w-full px-3 py-2 text-left text-sm hover:bg-surface flex items-center gap-2 text-content"
-                        >
-                          <FileText className="w-4 h-4 text-danger" /> Export PDF
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); exportTransaction(tx, 'csv'); }}
-                          className="w-full px-3 py-2 text-left text-sm hover:bg-surface flex items-center gap-2 text-content"
-                        >
-                          <FileSpreadsheet className="w-4 h-4 text-success" /> Export CSV
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                  <td className="p-4">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (window.confirm('Supprimer cette transaction ?')) {
-                          api.deleteTransaction(tx.id).then(() => {
-                            setUserTransactions(prev => prev.filter(t => t.id !== tx.id));
-                          });
-                        }
-                      }}
-                      className="p-1.5 rounded-md hover:bg-red-50 text-content-muted hover:text-red-600 transition-colors"
-                      title="Supprimer"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
-                </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          );
+                    return (
+                      <tr
+                        key={tx.id}
+                        onClick={() => startAnalysisFromHistory(tx)}
+                        className="border-b border-border hover:bg-surface/50 transition-colors cursor-pointer group"
+                      >
+                        <td className="p-4 font-mono text-sm font-medium text-content">{tx.transaction_id}</td>
+                        <td className="p-4 text-sm text-content-muted">{new Date(tx.created_at).toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
+                        <td className="p-4 text-sm text-content-muted uppercase">{tx.model_name}</td>
+                        <td className="p-4 text-sm font-mono text-content tabular-nums">{(tx.fraud_probability * 100).toFixed(1)}%</td>
+                        <td className="p-4">{annotationBadge}</td>
+                        <td className="p-4 text-right">
+                          <div className="flex items-center justify-end gap-3">
+                            {riskBadge}
+                            <ChevronRight className="w-4 h-4 text-border group-hover:text-primary transition-colors" />
+                          </div>
+                        </td>
+                        <td className="p-4 relative">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setExportDropdownTx(exportDropdownTx === tx.id ? null : tx.id); }}
+                            className="p-1.5 rounded-md hover:bg-surface text-content-muted hover:text-primary transition-colors"
+                            title="Télécharger"
+                          >
+                            <Download className="w-4 h-4" />
+                          </button>
+                          {exportDropdownTx === tx.id && (
+                            <div className="absolute right-4 top-12 z-30 bg-white border border-border rounded-lg shadow-lg py-1 min-w-[140px]">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); exportTransaction(tx, 'pdf'); }}
+                                className="w-full px-3 py-2 text-left text-sm hover:bg-surface flex items-center gap-2 text-content"
+                              >
+                                <FileText className="w-4 h-4 text-danger" /> Export PDF
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); exportTransaction(tx, 'csv'); }}
+                                className="w-full px-3 py-2 text-left text-sm hover:bg-surface flex items-center gap-2 text-content"
+                              >
+                                <FileSpreadsheet className="w-4 h-4 text-success" /> Export CSV
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                        <td className="p-4">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (window.confirm('Supprimer cette transaction ?')) {
+                                api.deleteTransaction(tx.id).then(() => {
+                                  setUserTransactions(prev => prev.filter(t => t.id !== tx.id));
+                                });
+                              }
+                            }}
+                            className="p-1.5 rounded-md hover:bg-red-50 text-content-muted hover:text-red-600 transition-colors"
+                            title="Supprimer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            );
           })()}
         </div>
       </main>
@@ -817,10 +836,10 @@ const App = () => {
 
   const detailView = (
     <div className="min-h-screen bg-background">
-       <header className="sticky top-0 z-40 bg-surface/80 backdrop-blur-lg border-b border-border">
+      <header className="sticky top-0 z-40 bg-surface/80 backdrop-blur-lg border-b border-border">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <button 
+            <button
               onClick={() => setActivePage('dashboard')}
               className="p-2 hover:bg-border/50 rounded-full transition-colors text-content-muted hover:text-content"
             >
@@ -832,79 +851,77 @@ const App = () => {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-8">
-         {error && (
-            <motion.div 
-              initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-              className="mb-6 p-4 bg-danger-light border border-danger/20 rounded-lg flex items-center gap-3 text-danger text-sm font-bold"
-            >
-              <AlertTriangle className="w-5 h-5" />
-              <span>{typeof error === 'string' ? error : JSON.stringify(error)}</span>
-            </motion.div>
-          )}
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+            className="mb-6 p-4 bg-danger-light border border-danger/20 rounded-lg flex items-center gap-3 text-danger text-sm font-bold"
+          >
+            <AlertTriangle className="w-5 h-5" />
+            <span>{typeof error === 'string' ? error : JSON.stringify(error)}</span>
+          </motion.div>
+        )}
 
-         <ResultsPanel
-            result={result}
-            isLoading={isLoading}
-            analysisType={analysisType}
-            elapsedTime={elapsedTime}
-            llmLoading={llmLoading}
-            formData={formData}
-            llmProvider={result?.llm_provider || llmProvider}
-          />
+        <ResultsPanel
+          result={result}
+          isLoading={isLoading}
+          analysisType={analysisType}
+          elapsedTime={elapsedTime}
+          llmLoading={llmLoading}
+          formData={formData}
+          llmProvider={result?.llm_provider || llmProvider}
+        />
 
-         {/* Annotation Section */}
-         {selectedTx?.dbId && !isLoading && result && (
-           <div className="card bg-white p-6 mt-6">
-             <h3 className="text-sm font-bold text-content-muted uppercase tracking-widest mb-4">Annotation de l'analyste</h3>
-             <p className="text-sm text-content-muted mb-4">Confirmez le statut de cette transaction après votre investigation :</p>
-             <div className="flex items-center gap-3 flex-wrap">
-               <button
-                 onClick={() => {
-                   updateAnnotation(selectedTx, 'valide');
-                   setSelectedTx(prev => ({ ...prev, annotation: 'valide' }));
-                 }}
-                 className={`px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 border transition-colors ${
-                   selectedTx.annotation === 'valide'
-                     ? 'bg-success/10 border-success text-success'
-                     : 'border-border text-content-muted hover:border-success hover:text-success'
-                 }`}
-               >
-                 <CheckCircle2 className="w-4 h-4" /> Transaction Valide
-               </button>
-               <button
-                 onClick={() => {
-                   updateAnnotation(selectedTx, 'frauduleuse');
-                   setSelectedTx(prev => ({ ...prev, annotation: 'frauduleuse' }));
-                 }}
-                 className={`px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 border transition-colors ${
-                   selectedTx.annotation === 'frauduleuse'
-                     ? 'bg-danger/10 border-danger text-danger'
-                     : 'border-border text-content-muted hover:border-danger hover:text-danger'
-                 }`}
-               >
-                 <XOctagon className="w-4 h-4" /> Fraude Confirmée
-               </button>
-               {selectedTx.annotation && (
-                 <button
-                   onClick={() => {
-                     updateAnnotation(selectedTx, null);
-                     setSelectedTx(prev => ({ ...prev, annotation: null }));
-                   }}
-                   className="px-3 py-2 text-xs text-content-muted hover:text-content hover:underline"
-                 >
-                   Retirer l'annotation
-                 </button>
-               )}
-             </div>
-             {selectedTx.annotation && (
-               <p className="mt-3 text-sm text-content">
-                 Statut actuel : <strong className={selectedTx.annotation === 'valide' ? 'text-success' : 'text-danger'}>
-                   {selectedTx.annotation === 'valide' ? 'Validée par l\'analyste' : 'Fraude confirmée par l\'analyste'}
-                 </strong>
-               </p>
-             )}
-           </div>
-         )}
+        {/* Annotation Section */}
+        {selectedTx?.dbId && !isLoading && result && (
+          <div className="card bg-white p-6 mt-6">
+            <h3 className="text-sm font-bold text-content-muted uppercase tracking-widest mb-4">Annotation de l'analyste</h3>
+            <p className="text-sm text-content-muted mb-4">Confirmez le statut de cette transaction après votre investigation :</p>
+            <div className="flex items-center gap-3 flex-wrap">
+              <button
+                onClick={() => {
+                  updateAnnotation(selectedTx, 'valide');
+                  setSelectedTx(prev => ({ ...prev, annotation: 'valide' }));
+                }}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 border transition-colors ${selectedTx.annotation === 'valide'
+                    ? 'bg-success/10 border-success text-success'
+                    : 'border-border text-content-muted hover:border-success hover:text-success'
+                  }`}
+              >
+                <CheckCircle2 className="w-4 h-4" /> Transaction Valide
+              </button>
+              <button
+                onClick={() => {
+                  updateAnnotation(selectedTx, 'frauduleuse');
+                  setSelectedTx(prev => ({ ...prev, annotation: 'frauduleuse' }));
+                }}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 border transition-colors ${selectedTx.annotation === 'frauduleuse'
+                    ? 'bg-danger/10 border-danger text-danger'
+                    : 'border-border text-content-muted hover:border-danger hover:text-danger'
+                  }`}
+              >
+                <XOctagon className="w-4 h-4" /> Fraude Confirmée
+              </button>
+              {selectedTx.annotation && (
+                <button
+                  onClick={() => {
+                    updateAnnotation(selectedTx, null);
+                    setSelectedTx(prev => ({ ...prev, annotation: null }));
+                  }}
+                  className="px-3 py-2 text-xs text-content-muted hover:text-content hover:underline"
+                >
+                  Retirer l'annotation
+                </button>
+              )}
+            </div>
+            {selectedTx.annotation && (
+              <p className="mt-3 text-sm text-content">
+                Statut actuel : <strong className={selectedTx.annotation === 'valide' ? 'text-success' : 'text-danger'}>
+                  {selectedTx.annotation === 'valide' ? 'Validée par l\'analyste' : 'Fraude confirmée par l\'analyste'}
+                </strong>
+              </p>
+            )}
+          </div>
+        )}
       </main>
     </div>
   );
@@ -914,7 +931,7 @@ const App = () => {
       <header className="sticky top-0 z-40 bg-surface/80 backdrop-blur-lg border-b border-border">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <button 
+            <button
               onClick={() => { setActivePage('dashboard'); setBatchResults(null); }}
               className="p-2 hover:bg-border/50 rounded-full transition-colors text-content-muted hover:text-content"
             >
@@ -983,10 +1000,10 @@ const App = () => {
                     const riskBadge = r.risk_level === 'CRITIQUE' || r.risk_level === 'ELEVÉ'
                       ? <span className="badge badge-danger">{r.risk_level}</span>
                       : r.risk_level === 'MOYEN'
-                      ? <span className="badge badge-warning">{r.risk_level}</span>
-                      : r.risk_level === 'ERREUR'
-                      ? <span className="badge badge-danger">ERREUR</span>
-                      : <span className="badge badge-success">{r.risk_level}</span>;
+                        ? <span className="badge badge-warning">{r.risk_level}</span>
+                        : r.risk_level === 'ERREUR'
+                          ? <span className="badge badge-danger">ERREUR</span>
+                          : <span className="badge badge-success">{r.risk_level}</span>;
 
                     const topFeat = r.top_features?.[0];
                     const featLabels = {
@@ -1061,31 +1078,33 @@ const App = () => {
       <AnimatePresence>
         {isNewAnalysisModalOpen && (
           <>
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => setIsNewAnalysisModalOpen(false)}
               className="fixed inset-0 bg-content/20 backdrop-blur-sm z-50"
             />
-            <motion.div 
+            <motion.div
               initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
               className="fixed inset-y-0 right-0 w-full max-w-md bg-white shadow-2xl border-l border-border z-50 flex flex-col"
             >
-               <div className="p-6 border-b border-border flex justify-between items-center bg-surface">
-                 <h2 className="text-xl font-serif text-content">Simuler une transaction</h2>
-                 <button onClick={() => setIsNewAnalysisModalOpen(false)} className="p-2 hover:bg-border rounded-full text-content-muted">
-                    <X className="w-5 h-5" />
-                 </button>
-               </div>
-               <div className="flex-1 overflow-y-auto p-6 bg-content/5">
-                 <Form 
-                    formData={formData} 
-                    setFormData={setFormData}
-                    onSubmit={handleQuickAnalysis}
-                    onFullAnalysis={handleFullAnalysis}
-                    isLoading={isLoading}
-                 />
-               </div>
+              <div className="p-6 border-b border-border flex justify-between items-center bg-surface">
+                <h2 className="text-xl font-serif text-content">Simuler une transaction</h2>
+                <button onClick={() => setIsNewAnalysisModalOpen(false)} className="p-2 hover:bg-border rounded-full text-content-muted">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6 bg-content/5">
+                <Form
+                  formData={formData}
+                  setFormData={setFormData}
+                  onSubmit={handleQuickAnalysis}
+                  onFullAnalysis={handleFullAnalysis}
+                  isLoading={isLoading}
+                  llmProvider={llmProvider}
+                  setLlmProvider={setLlmProvider}
+                />
+              </div>
             </motion.div>
           </>
         )}

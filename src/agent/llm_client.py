@@ -1,14 +1,10 @@
 """
-llm_client.py — Intégration LangChain + Perplexity API (LLM cloud).
+llm_client.py — Intégration LLM avec support dual-mode :
+  - local   : Ollama (Mistral en local, rapide, sans coût)
+  - perplexity : Perplexity API via LangChain (cloud, plus puissant)
 
-Pourquoi Perplexity ?
-  → API rapide et fiable (sonar / sonar-pro)
-  → Compatible OpenAI (même format de requêtes)
-  → Pas besoin de GPU local ni d'Ollama
-
-Architecture de la chaîne LangChain :
-  prompt_template | llm | output_parser
-  → Chaînage LCEL (LangChain Expression Language) : pythonique et composable
+Le provider est sélectionné dynamiquement à chaque appel via le paramètre
+llm_provider passé depuis le frontend.
 """
 
 from __future__ import annotations
@@ -18,22 +14,30 @@ from typing import Optional
 
 import httpx
 from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnableSequence
 from loguru import logger
 
-from src.agent.prompt import build_fraud_prompt, build_transaction_payload
+from src.agent.prompt import build_transaction_payload
+
+try:
+    from langchain_openai import ChatOpenAI
+    from langchain_core.output_parsers import StrOutputParser
+    LANGCHAIN_AVAILABLE = True
+except ImportError:
+    LANGCHAIN_AVAILABLE = False
+    logger.warning("langchain_openai non installé — mode Perplexity indisponible")
 
 load_dotenv()
 
 # ── Constantes ──────────────────────────────────────────────────────────────
 
-DEFAULT_API_KEY      = os.getenv("PERPLEXITY_API_KEY", "")
-DEFAULT_MODEL        = os.getenv("PERPLEXITY_MODEL", "sonar")
-DEFAULT_BASE_URL     = os.getenv("PERPLEXITY_BASE_URL", "https://api.perplexity.ai")
-DEFAULT_TEMPERATURE  = 0.1   # Faible → réponses déterministes et factuelles
-DEFAULT_TOP_P        = 0.9
+PERPLEXITY_API_KEY   = os.getenv("PERPLEXITY_API_KEY", "")
+PERPLEXITY_MODEL     = os.getenv("PERPLEXITY_MODEL", "sonar")
+PERPLEXITY_BASE_URL  = os.getenv("PERPLEXITY_BASE_URL", "https://api.perplexity.ai")
+
+OLLAMA_BASE_URL      = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_MODEL         = os.getenv("OLLAMA_MODEL", "mistral")
+
+DEFAULT_TEMPERATURE  = 0.1
 DEFAULT_MAX_TOKENS   = 512
 
 
@@ -43,93 +47,75 @@ class FraudAgent:
     """
     Agent LLM pour générer des explications de fraude en langage naturel.
 
-    Flux complet :
-      transaction + shap_values
-        → build_transaction_payload()
-        → prompt_template
-        → Perplexity API (sonar / sonar-pro)
-        → texte d'explication
+    Supporte deux providers :
+      - 'local'      → Ollama (Mistral en local via HTTP)
+      - 'perplexity' → Perplexity API via LangChain (ChatOpenAI compatible)
 
     Usage :
         agent = FraudAgent()
-        explanation = agent.explain(transaction, fraud_proba, top_features)
-        print(explanation)
+        explanation = agent.explain(transaction, fraud_proba, top_features,
+                                    llm_provider='local')
     """
 
     def __init__(
         self,
-        model: str = DEFAULT_MODEL,
-        api_key: str = DEFAULT_API_KEY,
-        base_url: str = DEFAULT_BASE_URL,
+        model: str = PERPLEXITY_MODEL,
+        api_key: str = PERPLEXITY_API_KEY,
+        base_url: str = PERPLEXITY_BASE_URL,
         temperature: float = DEFAULT_TEMPERATURE,
         max_tokens: int = DEFAULT_MAX_TOKENS,
     ) -> None:
-        self.model = model
-        self.api_key = api_key
-        self.base_url = base_url
+        self.model       = model
+        self.api_key     = api_key
+        self.base_url    = base_url
         self.temperature = temperature
-        self.max_tokens = max_tokens
+        self.max_tokens  = max_tokens
 
-        self._chain: RunnableSequence | None = None
-        self._build_chain()
+        # Construit la chaîne LangChain pour Perplexity (si dispo)
+        self._perplexity_chain = None
+        if LANGCHAIN_AVAILABLE and api_key:
+            self._build_perplexity_chain()
 
-    # ── Initialisation ────────────────────────────────────────────────────────
+        logger.info(f"FraudAgent initialisé — Perplexity: {'✓' if self._perplexity_chain else '✗'} | Ollama: ✓")
 
-    def _build_chain(self) -> None:
-        """
-        Construit la chaîne LCEL :
-          prompt | llm | output_parser
+    # ── Initialisation LangChain Perplexity ──────────────────────────────────
 
-        LCEL (LangChain Expression Language) permet de chaîner les composants
-        avec l'opérateur | de manière lisible et composable.
-        """
-        logger.info(f"Initialisation Perplexity — modèle: {self.model} @ {self.base_url}")
+    def _build_perplexity_chain(self) -> None:
+        try:
+            from src.agent.prompt import build_fraud_prompt
+            llm = ChatOpenAI(
+                api_key=self.api_key,
+                base_url=self.base_url,
+                model=self.model,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+                timeout=60,
+            )
+            parser = StrOutputParser()
+            prompt = build_fraud_prompt()
+            self._perplexity_chain = prompt | llm | parser
+            logger.success("Agent LLM Perplexity prêt ✓")
+        except Exception as e:
+            logger.warning(f"Impossible d'initialiser Perplexity LangChain: {e}")
+            self._perplexity_chain = None
 
-        llm = ChatOpenAI(
-            api_key=self.api_key,
-            base_url=self.base_url,
-            model=self.model,
-            temperature=self.temperature,
-            max_tokens=self.max_tokens,
-            timeout=60,
-        )
-
-        prompt = build_fraud_prompt()
-        parser = StrOutputParser()
-
-        self._chain = prompt | llm | parser
-        logger.success("Agent LLM Perplexity prêt ✓")
-
-    # ── API publique ──────────────────────────────────────────────────────────
+    # ── API publique ─────────────────────────────────────────────────────────
 
     def explain(
         self,
         transaction: dict,
         fraud_probability: float,
-        top_features: list[dict],
+        top_features: list,
         threshold: float = 0.5,
+        llm_provider: str = "local",
     ) -> str:
         """
         Génère une explication en langage naturel pour une transaction.
 
         Parameters
         ----------
-        transaction       : dict avec les métadonnées brutes
-        fraud_probability : score de fraude entre 0 et 1
-        top_features      : sortie de FraudExplainer.get_top_features()
-        threshold         : seuil de decision
-
-        Returns
-        -------
-        str : explication en langage naturel (3-5 phrases)
-
-        Raises
-        ------
-        RuntimeError si Ollama n'est pas accessible
+        llm_provider : 'local' (Ollama Mistral) ou 'perplexity' (Perplexity API)
         """
-        if self._chain is None:
-            raise RuntimeError("La chaîne LLM n'est pas initialisée.")
-
         payload = build_transaction_payload(
             transaction=transaction,
             fraud_probability=fraud_probability,
@@ -137,64 +123,116 @@ class FraudAgent:
             threshold=threshold,
         )
 
-        logger.info(f"Génération d'explication LLM pour TX: {transaction.get('transaction_id', '?')}")
+        logger.info(f"Génération LLM [{llm_provider}] pour TX: {transaction.get('transaction_id', '?')}")
 
+        if llm_provider == "perplexity":
+            return self._explain_perplexity(payload, transaction, fraud_probability, top_features)
+        else:
+            return self._explain_ollama(payload, transaction, fraud_probability, top_features)
+
+    # ── Provider : Perplexity (LangChain) ────────────────────────────────────
+
+    def _explain_perplexity(self, payload: dict, transaction: dict,
+                             fraud_probability: float, top_features: list) -> str:
+        if not self._perplexity_chain:
+            logger.warning("Perplexity indisponible, fallback Ollama")
+            return self._explain_ollama(payload, transaction, fraud_probability, top_features)
         try:
-            response = self._chain.invoke(payload)
-            logger.success("Explication LLM générée ✓")
+            response = self._perplexity_chain.invoke(payload)
+            logger.success("Explication Perplexity générée ✓")
             return response
-
         except Exception as e:
-            logger.error(f"Erreur LLM : {e}")
-            # Fallback : explication basée sur les règles (sans LLM)
+            logger.error(f"Erreur Perplexity : {e}")
             return self._rule_based_fallback(transaction, fraud_probability, top_features)
 
-    def health_check(self) -> bool:
-        """
-        Vérifie rapidement que l'API Perplexity est accessible.
+    # ── Provider : Ollama local (Mistral) ────────────────────────────────────
 
-        Important: on évite toute invocation LLM ici pour ne pas bloquer
-        l'event loop FastAPI dans /health.
-        """
+    def _explain_ollama(self, payload: dict, transaction: dict,
+                         fraud_probability: float, top_features: list) -> str:
+        """Appelle Ollama via son API HTTP REST directement (sans LangChain)."""
+        # Construire le prompt texte depuis le payload
+        prompt_text = self._payload_to_prompt(payload)
+
         try:
-            # Simple test: envoyer un HEAD/GET vers l'API base URL
-            response = httpx.get(
-                f"{self.base_url.rstrip('/')}/chat/completions",
-                headers={"Authorization": f"Bearer {self.api_key}"},
-                timeout=3.0,
+            response = httpx.post(
+                f"{OLLAMA_BASE_URL}/api/generate",
+                json={
+                    "model": OLLAMA_MODEL,
+                    "prompt": prompt_text,
+                    "stream": False,
+                    "options": {
+                        "temperature": self.temperature,
+                        "num_predict": self.max_tokens,
+                    }
+                },
+                timeout=120.0,
             )
-            # Perplexity retourne 405 (Method Not Allowed pour GET) ou 200/401
-            # Si on a un code != connection error, l'API est accessible
-            return response.status_code in (200, 405, 422)
+            response.raise_for_status()
+            result = response.json()
+            explanation = result.get("response", "").strip()
+            if explanation:
+                logger.success(f"Explication Ollama ({OLLAMA_MODEL}) générée ✓")
+                return explanation
+            raise ValueError("Réponse vide d'Ollama")
         except Exception as e:
-            logger.warning(f"Perplexity API inaccessible : {e}")
-            return False
+            logger.error(f"Erreur Ollama : {e}")
+            return self._rule_based_fallback(transaction, fraud_probability, top_features)
 
-    # ── Fallback sans LLM ─────────────────────────────────────────────────────
+    @staticmethod
+    def _payload_to_prompt(payload: dict) -> str:
+        """Convertit le payload LangChain en texte brut pour Ollama."""
+        parts = []
+        for key, value in payload.items():
+            if isinstance(value, str):
+                parts.append(value)
+        return "\n\n".join(parts) if parts else str(payload)
+
+    # ── Health Check ─────────────────────────────────────────────────────────
+
+    def health_check(self) -> bool:
+        """Vérifie si au moins un provider est disponible."""
+        # Test Ollama
+        try:
+            r = httpx.get(f"{OLLAMA_BASE_URL}/api/tags", timeout=2.0)
+            if r.status_code == 200:
+                return True
+        except Exception:
+            pass
+
+        # Test Perplexity
+        if self.api_key:
+            try:
+                r = httpx.get(
+                    f"{PERPLEXITY_BASE_URL.rstrip('/')}/chat/completions",
+                    headers={"Authorization": f"Bearer {self.api_key}"},
+                    timeout=3.0,
+                )
+                return r.status_code in (200, 405, 422)
+            except Exception:
+                pass
+
+        return False
+
+    # ── Fallback sans LLM ────────────────────────────────────────────────────
 
     @staticmethod
     def _rule_based_fallback(
         transaction: dict,
         fraud_probability: float,
-        top_features: list[dict],
+        top_features: list,
     ) -> str:
-        """
-        Génère une explication basée sur des règles si Ollama est indisponible.
-        Garantit que l'API reste fonctionnelle même sans LLM.
-        """
         risk_level = (
             "CRITIQUE" if fraud_probability >= 0.9
             else "ÉLEVÉ" if fraud_probability >= 0.7
             else "MOYEN" if fraud_probability >= 0.4
             else "FAIBLE"
         )
-
         top_names = [f["feature"] for f in top_features[:3]]
         motifs = ", ".join(top_names) if top_names else "comportement inhabituel"
 
         return (
             f"[NIVEAU DE RISQUE] : {risk_level} ({fraud_probability:.1%})\n"
-            f"[MOTIFS PRINCIPAUX] : La transaction présente des anomalies sur les indicateurs suivants : {motifs}.\n"
-            f"[RECOMMANDATION] : {'Bloquer la transaction et contacter le client.' if fraud_probability > 0.7 else 'Surveiller et valider manuellement.'}\n"
+            f"[MOTIFS PRINCIPAUX] : La transaction présente des anomalies sur : {motifs}.\n"
+            f"[RECOMMANDATION] : {'Bloquer immédiatement et contacter le client.' if fraud_probability > 0.7 else 'Surveiller et valider manuellement.'}\n"
             f"\n⚠️ Note : Explication générée par règles (LLM indisponible)."
         )

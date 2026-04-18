@@ -132,11 +132,26 @@ async def health_check() -> HealthResponse:
         else "unhealthy"
     )
 
+    # Métriques de performance du modèle Champion (XGBoost v2 + Sequential Features + Optuna)
+    # Calculées sur le Test Set (150k transactions, jamais vues à l'entraînement)
+    model_metrics = {
+        "accuracy":      0.91,    # 91% d'accuracy globale
+        "auc_pr":        0.31,    # AUC-PR sur Test Set (Precision-Recall, métrique principale fraude)
+        "f1_macro":      0.49,    # F1-Score Macro
+        "precision_fraud": 0.30,  # Précision sur la classe Fraude
+        "recall_fraud":  0.01,    # Recall sur la classe Fraude (seuil 80%)
+        "version":       "v2.0 (Optuna + Sequential Features)",
+        "training_samples": 700000,  # Lignes d'entraînement (après SMOTE)
+        "n_features":    27,
+    } if model_loaded else None
+
     return HealthResponse(
         status=overall_status,
         model_loaded=model_loaded,
         llm_online=llm_online,
+        model_metrics=model_metrics,
     )
+
 
 
 # ── Lancement direct ──────────────────────────────────────────────────────────

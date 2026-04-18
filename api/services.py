@@ -60,7 +60,14 @@ class ModelService:
             "browser": "Chrome",
             "payment_method": "credit_card",
             "card_type": "visa",
-            "avg_amount_30d": tx.get("transaction_amount", 1000.0) # Défaut si non spécifié
+            "avg_amount_30d": tx.get("transaction_amount", 1000.0),
+            # ── Features séquentielles : valeurs de simulation réalistes ────
+            # Ces valeurs seront saisies par l'utilisateur via le formulaire.
+            # Si non fournies, on utilise des valeurs "transaction normale" par défaut.
+            "time_since_last_txn": tx.get("time_since_last_txn", 480.0),  # 8h depuis dernière txn
+            "txn_count_24h":       tx.get("txn_count_24h", 2.0),           # 2 transactions/jour = normal
+            "txn_sum_24h":         tx.get("txn_sum_24h", tx.get("transaction_amount", 1000.0) * 2),
+            "is_new_city":         tx.get("is_new_city", 0),               # Ville connue par défaut
         }
         for k, v in defaults.items():
             if k not in tx:
@@ -136,13 +143,14 @@ class FullService:
             "llm_model": getattr(self.agent, "model", "sonar")
         }
 
-    def generate_explanation(self, transaction: Dict[str, Any], fraud_probability: float, top_features: list, threshold: float = 0.5) -> str:
+    def generate_explanation(self, transaction: Dict[str, Any], fraud_probability: float, top_features: list, threshold: float = 0.5, llm_provider: str = "local") -> str:
         """Génère uniquement l'explication LLM (lent, ~30-60s)."""
         return self.agent.explain(
             transaction=transaction,
             fraud_probability=fraud_probability,
             top_features=top_features,
-            threshold=threshold
+            threshold=threshold,
+            llm_provider=llm_provider,
         )
 
     def predict_and_explain(self, transaction: Dict[str, Any], model_name: str = "xgboost") -> Dict[str, Any]:
