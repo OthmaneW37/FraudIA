@@ -103,17 +103,21 @@ class FraudPreprocessor:
     def _apply_feature_engineering(self, df: pd.DataFrame) -> pd.DataFrame:
         """Ajoute des features calculées pour aider le modèle à mieux séparer la fraude."""
         df = df.copy()
-        
+
         # 1. Ratio Montant / Moyenne (Très puissant pour la fraude)
         # Si avg_amount_30d n'existe pas, on met 1.0 (on ne peut pas diviser par 0)
         avg = df.get("avg_amount_30d", df.get("transaction_amount", 1.0)).fillna(df["transaction_amount"])
         df["amount_ratio"] = df["transaction_amount"] / (avg + 1e-9)
-        
+
+        # 1.b Compatibilité avec les modèles déjà entraînés : transformation log du montant.
+        # clip(lower=0) évite tout problème si une valeur négative ou aberrante arrive à l'inférence.
+        df["log_amount"] = np.log1p(df["transaction_amount"].clip(lower=0))
+
         # 2. Heure cyclique (23h est proche de 00h)
         if "hour" in df.columns:
             df["hour_sin"] = np.sin(2 * np.pi * df["hour"] / 24)
             df["hour_cos"] = np.cos(2 * np.pi * df["hour"] / 24)
-            
+
         return df
 
 

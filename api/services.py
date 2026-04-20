@@ -26,9 +26,9 @@ class ModelService:
     @staticmethod
     def _load_thresholds() -> Dict[str, float]:
         defaults = {
-            "xgboost": 0.37,
-            "random_forest": 0.35,
-            "logistic_regression": 0.30,
+            "xgboost": 0.60,
+            "random_forest": 0.50,
+            "logistic_regression": 0.50,
         }
 
         if not THRESHOLDS_PATH.exists():
@@ -75,9 +75,7 @@ class ModelService:
         defaults = {
             "fee_amount": 27.76,
             "user_account_age_days": 1006.0,
-            "time_diff": 850943.0,
             "day_of_week": 1,
-            "is_night": tx.get("hour", 12) < 6 or tx.get("hour", 12) > 22,
             "operating_system": "Windows",
             "browser": "Chrome",
             "payment_method": "card" if tx.get("payment_method") in (None, "", "credit_card") else tx.get("payment_method"),

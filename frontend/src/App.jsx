@@ -76,28 +76,28 @@ const App = () => {
 
   const [formData, setFormData] = useState({
     transaction_id: "TX_" + Math.random().toString(36).substr(2, 9).toUpperCase(),
-    // ── Champs Critiques (Alidgnés avec le Modèle) ─────────────────────────
-    transaction_amount: 250,
+    // ── Champs visibles dans le formulaire ──────────────────────────────────
+    transaction_amount: 1200,
     transaction_type: "purchase",
-    merchant_category: "grocery",
     payment_method: "bkash",
-    card_type: "debit",
     kyc_verified: true,
     otp_used: true,
-    user_account_age_days: 365,
-    txn_count_24h: 1,
-    txn_sum_24h: 250,
-    time_since_last_txn: 720,
     is_new_city: 0,
-    
-    // ── Détails & Métadonnées (Contexte uniquement - Secondaire) ──────────
-    avg_amount_30d: 220,
+    hour: 14,
+    txn_count_24h: 2,
+    txn_sum_24h: 1500,
+    time_since_last_txn: 480,
+    selected_model: "xgboost",
+    // ── Defaults non visibles (transmis au modele) ──────────────────────────
+    merchant_category: "grocery",
+    card_type: "debit",
+    day_of_week: 1,
     city: "Dhaka",
     country: "Bangladesh",
     currency: "BDT",
     device_type: "mobile",
-    hour: 14,
-    selected_model: "xgboost"
+    operating_system: "Android",
+    browser: "Chrome",
   });
 
   const formDataRef = useRef(formData);
@@ -753,7 +753,7 @@ const App = () => {
                 </thead>
                 <tbody>
                   {filtered.map((tx) => {
-                    const riskBadge = tx.risk_level === 'CRITIQUE' || tx.risk_level === 'ELEVÉ' || tx.is_fraud
+                    const riskBadge = tx.risk_level === 'CRITIQUE' || tx.risk_level === 'ÉLEVÉ' || tx.risk_level === 'ELEVÉ'
                       ? <span className="badge badge-danger">{tx.risk_level}</span>
                       : tx.risk_level === 'MOYEN'
                         ? <span className="badge badge-warning">{tx.risk_level}</span>
@@ -998,7 +998,7 @@ const App = () => {
                 </thead>
                 <tbody>
                   {batchResults.results.map((r, i) => {
-                    const riskBadge = r.risk_level === 'CRITIQUE' || r.risk_level === 'ELEVÉ'
+                    const riskBadge = r.risk_level === 'CRITIQUE' || r.risk_level === 'ÉLEVÉ' || r.risk_level === 'ELEVÉ'
                       ? <span className="badge badge-danger">{r.risk_level}</span>
                       : r.risk_level === 'MOYEN'
                         ? <span className="badge badge-warning">{r.risk_level}</span>

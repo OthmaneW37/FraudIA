@@ -18,7 +18,10 @@ def train_and_optimize():
     df = loader.load()
 
     # Nettoyage minimal
-    cols_to_drop = ['organization', 'transaction_id', 'user_id', 'transaction_timestamp']
+    # is_night : redondant avec hour_sin/hour_cos calculés par le preprocessor
+    # time_diff : valeur hardcodée à l'inférence (850943.0) → distribution shift garanti
+    cols_to_drop = ['organization', 'transaction_id', 'user_id', 'transaction_timestamp',
+                    'is_night', 'time_diff']
     df_clean = df.drop(columns=[c for c in cols_to_drop if c in df.columns])
 
     # Splitting
