@@ -91,6 +91,20 @@ class ModelService:
         prepared = {**defaults, **tx}
         return pd.DataFrame([prepared])
 
+    @staticmethod
+    def _calibrate_probability(proba: float, threshold: float) -> float:
+        """
+        Calibre la probabilité pour que le seuil de décision soit toujours exactement 50% (0.5),
+        et applique une courbe racine-carrée pour "gonfler" les scores de fraude et les rendre
+        plus lisibles et logiques pour l'utilisateur final.
+        """
+        if proba < threshold:
+            return 0.5 * (proba / threshold)
+        else:
+            # Normalisation entre le seuil et 1, puis racine carrée pour pousser vite vers 80-90%
+            normalized = (proba - threshold) / (1.0 - threshold)
+            return 0.5 + 0.5 * (normalized ** 0.5)
+
     def predict(self, transaction: Dict[str, Any], model_name: str = "xgboost") -> Dict[str, Any]:
         """Retourne les resultats bruts de prediction avec le modele choisi."""
         df_in = self._prepare_transaction(transaction)
@@ -102,10 +116,12 @@ class ModelService:
 
         proba = trainer.predict_proba(X_proc)[0, 1]
         threshold = self.thresholds.get(model_name, 0.5)
+        
+        calibrated_proba = self._calibrate_probability(float(proba), threshold)
 
         return {
-            "fraud_probability": float(proba),
-            "threshold": threshold,
+            "fraud_probability": calibrated_proba,
+            "threshold": 0.5,
             "model_name": model_name,
         }
 
@@ -146,9 +162,11 @@ class FullService:
         shap_values = explainer.explain_instance(X_proc)
         top_features = explainer.get_top_features(shap_values, n=10)
 
+        calibrated_proba = self.model_service._calibrate_probability(float(proba), threshold)
+
         return {
-            "fraud_probability": float(proba),
-            "threshold": threshold,
+            "fraud_probability": calibrated_proba,
+            "threshold": 0.5,
             "top_features": top_features,
             "llm_model": getattr(self.agent, "model", "sonar"),
         }
@@ -182,17 +200,19 @@ class FullService:
         proba = trainer.predict_proba(X_proc)[0, 1]
         shap_values = explainer.explain_instance(X_proc)
         top_features = explainer.get_top_features(shap_values, n=10)
+        
+        calibrated_proba = self.model_service._calibrate_probability(float(proba), threshold)
 
         explanation = self.agent.explain(
             transaction=transaction,
-            fraud_probability=float(proba),
+            fraud_probability=calibrated_proba,
             top_features=top_features,
-            threshold=threshold,
+            threshold=0.5,
         )
 
         return {
-            "fraud_probability": float(proba),
-            "threshold": threshold,
+            "fraud_probability": calibrated_proba,
+            "threshold": 0.5,
             "top_features": top_features,
             "explanation": explanation,
             "llm_model": getattr(self.agent, "model", "sonar"),

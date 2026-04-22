@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from api.auth import get_current_user_optional
 from api.notifications import notify_fraud_alert
 from api.schemas import ExplanationResponse, RiskLevel, ShapFeature, TransactionInput
+from api.translation import MoroccanTranslator
 
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "mistral")
 
@@ -72,9 +73,11 @@ def explain_shap(
 ) -> ShapResponse:
     start = time.perf_counter()
     transaction_data = transaction.model_dump()
+    
+    adapted_tx, context = MoroccanTranslator.translate_to_bangladesh(transaction_data)
 
     try:
-        result = service.predict_and_shap(transaction_data, model_name=transaction.selected_model)
+        result = service.predict_and_shap(adapted_tx, model_name=transaction.selected_model)
     except Exception as exc:
         logger.error(f"Erreur SHAP [{transaction.transaction_id}]: {exc}")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
@@ -122,14 +125,17 @@ def explain_llm(
     try:
         tx_dict = req.model_dump()
         features_raw = [feature.model_dump() for feature in req.top_features]
+        
+        adapted_tx, context = MoroccanTranslator.translate_to_bangladesh(tx_dict)
 
         explanation = service.generate_explanation(
-            transaction=tx_dict,
+            transaction=adapted_tx,
             fraud_probability=req.fraud_probability,
             top_features=features_raw,
             threshold=req.threshold,
             llm_provider=provider,
         )
+        explanation = MoroccanTranslator.translate_explanation_to_maroc(explanation, context)
     except Exception as exc:
         logger.error(f"Erreur LLM [{req.transaction_id}]: {exc}")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
@@ -160,9 +166,13 @@ def explain_fraud(
 ) -> ExplanationResponse:
     start = time.perf_counter()
     transaction_data = transaction.model_dump()
+    
+    adapted_tx, context = MoroccanTranslator.translate_to_bangladesh(transaction_data)
 
     try:
-        result = service.predict_and_explain(transaction_data, model_name=transaction.selected_model)
+        result = service.predict_and_explain(adapted_tx, model_name=transaction.selected_model)
+        if "explanation" in result:
+            result["explanation"] = MoroccanTranslator.translate_explanation_to_maroc(result["explanation"], context)
     except Exception as exc:
         logger.error(f"Erreur explication [{transaction.transaction_id}]: {exc}")
         raise HTTPException(
@@ -221,6 +231,6 @@ def _compute_risk_level(probability: float) -> RiskLevel:
         return RiskLevel.CRITIQUE
     if probability >= 0.7:
         return RiskLevel.ELEVE
-    if probability >= 0.4:
+    if probability >= 0.5:
         return RiskLevel.MOYEN
     return RiskLevel.FAIBLE

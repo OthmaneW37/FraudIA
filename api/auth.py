@@ -115,9 +115,6 @@ def init_db() -> None:
         )
 
         default_users = [
-            ("Othmane Wari", "othmane@fraudia.ma", "analyst123"),
-            ("Sara Bennani", "sara@fraudia.ma", "analyst123"),
-            ("Youssef Alami", "youssef@fraudia.ma", "analyst123"),
             ("Rayane Ramzi", "rayane.ramzi24@gmail.com", "password"),
             ("Othmane Moussawi", "othmanemoussawi@gmail.com", "password"),
         ]
@@ -278,13 +275,22 @@ def delete_transaction(user_id: str, row_id: str) -> None:
 
 
 def get_user_transactions(user_id: str, limit: int = 50) -> list[dict]:
-    """Recupere les transactions d'un analyste (cloisonnement)."""
+    """Recupere les transactions (toutes si superadmin, sinon celles de l'analyste)."""
     conn = _get_db()
     try:
-        rows = conn.execute(
-            "SELECT * FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT ?",
-            (user_id, limit),
-        ).fetchall()
+        user_row = conn.execute("SELECT role FROM users WHERE id = ?", (user_id,)).fetchone()
+        is_superadmin = user_row and user_row["role"] == "superadmin"
+
+        if is_superadmin:
+            rows = conn.execute(
+                "SELECT * FROM transactions ORDER BY created_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT ?",
+                (user_id, limit),
+            ).fetchall()
         return [dict(r) for r in rows]
     finally:
         conn.close()
@@ -297,10 +303,18 @@ def get_user_analytics(user_id: str) -> dict:
 
     conn = _get_db()
     try:
-        rows = conn.execute(
-            "SELECT * FROM transactions WHERE user_id = ? ORDER BY created_at DESC",
-            (user_id,),
-        ).fetchall()
+        user_row = conn.execute("SELECT role FROM users WHERE id = ?", (user_id,)).fetchone()
+        is_superadmin = user_row and user_row["role"] == "superadmin"
+
+        if is_superadmin:
+             rows = conn.execute(
+                 "SELECT * FROM transactions ORDER BY created_at DESC"
+             ).fetchall()
+        else:
+             rows = conn.execute(
+                 "SELECT * FROM transactions WHERE user_id = ? ORDER BY created_at DESC",
+                 (user_id,),
+             ).fetchall()
         txs = [dict(r) for r in rows]
     finally:
         conn.close()
@@ -407,6 +421,26 @@ def get_user_analytics(user_id: str) -> dict:
         1 for tx in txs if tx["risk_level"] in ("ELEVÉ", "ÉLEVÉ", "CRITIQUE")
     )
 
+    by_analyst = []
+    if is_superadmin:
+        analyst_counts = Counter()
+        for tx in txs:
+            # We need to get the name of the analyst.
+            # In a real app we might join, but here we can just use the user_id
+            # or better, just get all users mapping.
+            analyst_counts[tx.get("user_id", "inconnu")] += 1
+        
+        # Get mapping of UserID -> Name
+        conn = _get_db()
+        users_rows = conn.execute("SELECT id, full_name FROM users").fetchall()
+        user_map = {r["id"]: r["full_name"] for r in users_rows}
+        conn.close()
+
+        by_analyst = [
+            {"name": user_map.get(uid, uid), "count": count}
+            for uid, count in analyst_counts.items()
+        ]
+
     return {
         "total": total,
         "avg_score": round(avg_score * 100, 1),
@@ -416,5 +450,36 @@ def get_user_analytics(user_id: str) -> dict:
         "by_type": by_type,
         "by_category": by_category,
         "by_hour": by_hour,
+        "by_analyst": by_analyst,
         "score_timeline": score_timeline,
     }
+
+
+def get_all_analysts() -> list[dict]:
+    """Recupere la liste des analystes avec leurs statistiques pour le superadmin."""
+    conn = _get_db()
+    try:
+        query = """
+        SELECT u.id, u.email, u.full_name, u.rating, u.admin_comment,
+               (SELECT COUNT(*) FROM transactions t WHERE t.user_id = u.id) as tx_count,
+               (SELECT AVG(fraud_probability) FROM transactions t WHERE t.user_id = u.id) as avg_score
+        FROM users u
+        WHERE u.role = 'analyst'
+        """
+        rows = conn.execute(query).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def update_analyst_rating(user_id: str, rating: float, comment: str) -> None:
+    """Met a jour la note et le commentaire de l'admin pour un analyste."""
+    conn = _get_db()
+    try:
+        conn.execute(
+            "UPDATE users SET rating = ?, admin_comment = ? WHERE id = ?",
+            (rating, comment, user_id)
+        )
+        conn.commit()
+    finally:
+        conn.close()

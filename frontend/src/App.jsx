@@ -19,6 +19,7 @@ import {
   ArrowLeft,
   Filter,
   User,
+  Users,
   Search,
   XCircle,
   Download,
@@ -37,6 +38,7 @@ import Form from './components/Form';
 import ResultsPanel from './components/ResultsPanel';
 import LoginPage from './components/LoginPage';
 import AnalyticsPage from './components/AnalyticsPage';
+import AdminPanel from './components/AdminPanel';
 
 const App = () => {
   // Auth state
@@ -83,6 +85,7 @@ const App = () => {
     kyc_verified: true,
     otp_used: true,
     is_new_city: 0,
+<<<<<<< HEAD
     hour: 14,
     txn_count_24h: 2,
     txn_sum_24h: 1500,
@@ -95,6 +98,14 @@ const App = () => {
     city: "Dhaka",
     country: "Bangladesh",
     currency: "BDT",
+=======
+    
+    // ── Détails & Métadonnées (Contexte uniquement - Secondaire) ──────────
+    avg_amount_30d: 220,
+    city: "Casablanca",
+    country: "Maroc",
+    currency: "MAD",
+>>>>>>> 2c965fa (Correction bugs + Ajout fonctionnalités)
     device_type: "mobile",
     operating_system: "Android",
     browser: "Chrome",
@@ -568,8 +579,13 @@ const App = () => {
               <span className="font-bold text-lg">FraudIA</span>
             </div>
             <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-content-muted">
-              <span className="text-content pb-1 border-b-2 border-primary cursor-pointer">Opérations</span>
+              <span className="text-content pb-1 border-b-2 border-primary cursor-pointer">{user?.role === 'superadmin' ? 'Supervision Globale' : 'Opérations'}</span>
               <span onClick={() => setActivePage('analytics')} className="hover:text-content transition-colors cursor-pointer">Analytiques</span>
+              {user?.role === 'superadmin' && (
+                <span onClick={() => setActivePage('admin')} className="hover:text-content transition-colors cursor-pointer flex items-center gap-1">
+                  <Users className="w-4 h-4"/> Équipe
+                </span>
+              )}
               {health.model_metrics && (
                 <div className="flex items-center gap-4 ml-4 px-4 py-1.5 bg-surface border border-border rounded-full shadow-inner">
                    <div className="flex flex-col">
@@ -613,7 +629,7 @@ const App = () => {
             {user && (
               <div className="flex items-center gap-3 ml-2 pl-4 border-l border-border">
                 <div className="text-right hidden md:block">
-                  <p className="text-xs font-bold text-content">{user.full_name}</p>
+                  <p className="text-xs font-bold text-content">{user?.role === 'superadmin' ? '👑 ' : ''}{user.full_name}</p>
                   <p className="text-[10px] text-content-muted">{user.email}</p>
                 </div>
                 <button
@@ -632,8 +648,14 @@ const App = () => {
       <main className="max-w-7xl mx-auto px-6 py-8">
         <div className="mb-6 flex justify-between items-end">
           <div>
-            <h1 className="text-3xl font-serif mb-2 text-content">Mes Analyses</h1>
-            <p className="text-content-muted text-sm">Historique de vos transactions analysées — données cloisonnées par analyste.</p>
+            <h1 className="text-3xl font-serif mb-2 text-content">
+              {user?.role === 'superadmin' ? 'Supervision Globale' : 'Mes Analyses'}
+            </h1>
+            <p className="text-content-muted text-sm">
+              {user?.role === 'superadmin' 
+                ? 'Vue d\'ensemble de toutes les transactions traitées par l\'équipe.' 
+                : 'Historique de vos transactions analysées — données cloisonnées par analyste.'}
+            </p>
           </div>
           <div className="flex gap-2">
             <button
@@ -1062,6 +1084,14 @@ const App = () => {
     <div className="min-h-screen font-sans text-content selection:bg-primary/20">
       {activePage === 'landing' && landingView}
       {activePage === 'login' && <LoginPage onLogin={handleLogin} />}
+      {activePage === 'admin' && user?.role === 'superadmin' && (
+        <AdminPanel 
+          user={user} 
+          health={health} 
+          onLogout={handleLogout} 
+          onNavigate={setActivePage} 
+        />
+      )}
       {activePage === 'dashboard' && dashboardView}
       {activePage === 'analytics' && (
         <AnalyticsPage

@@ -60,6 +60,33 @@ export const api = {
     } catch { return null; }
   },
 
+  // ── Admin (Superadmin) ──
+  getAnalysts: async () => {
+    const response = await client.get('/auth/admin/users');
+    return response.data;
+  },
+
+  gradeAnalyst: async (analystId, data) => {
+    const response = await client.post(`/auth/admin/users/${analystId}/grade`, data);
+    return response.data;
+  },
+
+  // ── HITL (Human-in-the-Loop) ──
+  getHitlStatus: async () => {
+    const response = await client.get('/hitl/status');
+    return response.data;
+  },
+
+  triggerRetrain: async () => {
+    const response = await client.post('/hitl/retrain', {}, { timeout: 120000 });
+    return response.data;
+  },
+
+  getHitlHistory: async () => {
+    const response = await client.get('/hitl/history');
+    return response.data;
+  },
+
   // ── Transactions history (cloisonné) ──
   getTransactions: async () => {
     const response = await client.get('/auth/transactions');

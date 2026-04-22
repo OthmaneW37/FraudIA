@@ -178,7 +178,7 @@ def build_transaction_payload(
         # SHAP
         "shap_features_formatted":  format_shap_features(top_features),
         # Historique (optionnel, valeur par défaut si absent)
-        "avg_amount_30d":    transaction.get("avg_amount_30d", "N/A"),
-        "amount_ratio":      transaction.get("transaction_amount", 0) / max(transaction.get("avg_amount_30d", 1), 1),
-        "txn_count_today":   transaction.get("txn_count_today", "N/A"),
+        "avg_amount_30d":    transaction.get("avg_amount_30d") if transaction.get("avg_amount_30d") is not None else "N/A",
+        "amount_ratio":      transaction.get("transaction_amount", 0) / max(transaction.get("avg_amount_30d") or 1, 1),
+        "txn_count_today":   transaction.get("txn_count_today", "N/A") if transaction.get("txn_count_today") is not None else "N/A",
     }

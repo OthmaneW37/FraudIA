@@ -15,6 +15,7 @@ from loguru import logger
 
 from api.routes import auth_routes, explain, predict
 from api.routes import batch as batch_routes
+from api.routes import hitl_routes
 from api.schemas import HealthResponse
 
 load_dotenv()
@@ -90,6 +91,7 @@ app.include_router(auth_routes.router)
 app.include_router(predict.router)
 app.include_router(explain.router)
 app.include_router(batch_routes.router)
+app.include_router(hitl_routes.router)
 
 
 @app.get("/", tags=["Root"], summary="Bienvenue")

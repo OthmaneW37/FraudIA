@@ -7,7 +7,7 @@ import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
 } from 'recharts';
 import {
-  ShieldCheck, Activity, TrendingUp, AlertTriangle, BarChart3, PieChart as PieIcon, Clock, Layers, LogOut, Plus
+  ShieldCheck, Activity, TrendingUp, AlertTriangle, BarChart3, PieChart as PieIcon, Clock, Layers, LogOut, Plus, Users
 } from 'lucide-react';
 
 const RISK_COLORS = {
@@ -132,9 +132,13 @@ export default function AnalyticsPage({ user, health, onLogout, onNavigate, onNe
               <span className="font-bold text-lg">FraudIA</span>
             </div>
             <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-content-muted">
-              <span onClick={() => onNavigate('dashboard')} className="hover:text-content transition-colors cursor-pointer">Opérations</span>
+              <span onClick={() => onNavigate('dashboard')} className="hover:text-content transition-colors cursor-pointer">{user?.role === 'superadmin' ? 'Supervision Globale' : 'Opérations'}</span>
               <span className="text-content pb-1 border-b-2 border-primary cursor-pointer">Analytiques</span>
-              <span className="hover:text-content transition-colors cursor-pointer">Modèles</span>
+              {user?.role === 'superadmin' && (
+                <span onClick={() => onNavigate('admin')} className="hover:text-content transition-colors cursor-pointer flex items-center gap-1">
+                  <Users className="w-4 h-4"/> Équipe
+                </span>
+              )}
             </nav>
           </div>
           <div className="flex items-center gap-4">
@@ -162,8 +166,14 @@ export default function AnalyticsPage({ user, health, onLogout, onNavigate, onNe
 
       <main className="max-w-7xl mx-auto px-6 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-serif mb-2 text-content">Analytiques</h1>
-          <p className="text-content-muted text-sm">Vue d'ensemble de vos analyses de fraude — données cloisonnées par analyste.</p>
+          <h1 className="text-3xl font-serif mb-2 text-content">
+            {user?.role === 'superadmin' ? 'Analytiques Globales' : 'Vos Analytiques'}
+          </h1>
+          <p className="text-content-muted text-sm">
+            {user?.role === 'superadmin' 
+              ? 'Performance et tendances globales de détection de fraude sur l\'ensemble des analystes.'
+              : 'Vue d\'ensemble de vos analyses de fraude — données cloisonnées par analyste.'}
+          </p>
         </div>
 
         {loading ? (
@@ -189,7 +199,11 @@ export default function AnalyticsPage({ user, health, onLogout, onNavigate, onNe
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
               {/* Pie Chart — Répartition risque */}
               <div className="card p-6 bg-white">
-                <SectionTitle icon={PieIcon} title="Répartition par niveau de risque" subtitle="Distribution de vos analyses" />
+                <SectionTitle 
+                  icon={PieIcon} 
+                  title="Répartition par niveau de risque" 
+                  subtitle={user?.role === 'superadmin' ? "Distribution des analyses de l'équipe" : "Distribution de vos analyses"} 
+                />
                 <ResponsiveContainer width="100%" height={280}>
                   <PieChart>
                     <Pie
@@ -349,6 +363,21 @@ export default function AnalyticsPage({ user, health, onLogout, onNavigate, onNe
                 </ResponsiveContainer>
               </div>
             </div>
+
+            {user?.role === 'superadmin' && data.by_analyst && data.by_analyst.length > 0 && (
+              <div className="card p-6 bg-white mb-6">
+                <SectionTitle icon={Users} title="Volume par Analyste" subtitle="Répartition de la charge de travail au sein de l'équipe" />
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={data.by_analyst} layout="vertical" margin={{ left: 40, right: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
+                    <XAxis type="number" tick={{ fontSize: 11 }} stroke="#9ca3af" />
+                    <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} stroke="#9ca3af" width={140} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar dataKey="count" name="Analyses" fill="#10b981" radius={[0, 4, 4, 0]} barSize={30} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </>
         )}
       </main>

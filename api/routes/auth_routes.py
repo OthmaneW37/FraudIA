@@ -79,6 +79,30 @@ def create_transaction(data: dict = Body(...), user: dict = Depends(get_current_
 @router.put("/transactions/{row_id}", summary="Mettre à jour une transaction")
 def put_transaction(row_id: str, data: dict = Body(...), user: dict = Depends(get_current_user)):
     update_transaction(user["id"], row_id, data)
+    
+    # ── HITL : si une annotation est soumise, enregistrer le feedback ────────
+    annotation = data.get("annotation")
+    if annotation in ("frauduleuse", "valide"):
+        try:
+            import sqlite3
+            from pathlib import Path
+            db_path = Path(__file__).resolve().parent.parent.parent / "users.db"
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            row = conn.execute("SELECT * FROM transactions WHERE id = ?", (row_id,)).fetchone()
+            conn.close()
+            if row:
+                from api.hitl import extract_feedback_from_annotation
+                extract_feedback_from_annotation(
+                    db_row=dict(row),
+                    annotation=annotation,
+                    analyst_id=user["id"],
+                )
+        except Exception as exc:
+            # Ne pas bloquer la réponse si le HITL échoue
+            from loguru import logger
+            logger.warning(f"[HITL] Erreur d'enregistrement du feedback : {exc}")
+    
     return {"status": "updated"}
 
 
@@ -86,3 +110,26 @@ def put_transaction(row_id: str, data: dict = Body(...), user: dict = Depends(ge
 def remove_transaction(row_id: str, user: dict = Depends(get_current_user)):
     delete_transaction(user["id"], row_id)
     return {"status": "deleted"}
+
+
+@router.get("/admin/users", summary="Admin: Liste des analystes")
+def admin_list_users(user: dict = Depends(get_current_user)):
+    if user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Accès refusé.")
+    from api.auth import get_all_analysts
+    return get_all_analysts()
+
+
+@router.post("/admin/users/{analyst_id}/grade", summary="Admin: Noter un analyste")
+def admin_grade_user(analyst_id: str, data: dict = Body(...), user: dict = Depends(get_current_user)):
+    if user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Accès refusé.")
+    
+    rating = data.get("rating")
+    comment = data.get("admin_comment", "")
+    if rating is None:
+        raise HTTPException(status_code=400, detail="La note est requise.")
+        
+    from api.auth import update_analyst_rating
+    update_analyst_rating(analyst_id, float(rating), comment)
+    return {"status": "success"}

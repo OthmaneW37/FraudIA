@@ -162,7 +162,7 @@ const TransactionSummary = React.memo(({ formData }) => (
         { label: 'Pays', value: formData.country },
         { label: 'Format Base', value: formData.device_type },
         { label: 'Facteur 2FA', value: formData.otp_used ? '✅ Oui' : '❌ Non' },
-        { label: 'Moyenne / 30j', value: formData.avg_amount_30d != null ? `${formData.avg_amount_30d} ${formData.currency || 'BDT'}` : 'N/A' },
+        { label: 'Moyenne / 30j', value: formData.avg_amount_30d != null ? `${formData.avg_amount_30d} ${formData.currency || 'MAD'}` : 'N/A' },
       ].map((item, i) => (
         <div key={i} className="flex flex-col gap-1">
           <p className="text-[10px] font-bold text-content-muted uppercase tracking-widest">{item.label}</p>
