@@ -255,6 +255,7 @@ function HitlPanel() {
 export default function AdminPanel({ user, health, onLogout, onNavigate }) {
   const [analysts, setAnalysts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [selectedAnalyst, setSelectedAnalyst] = useState(null);
   const [activeTab, setActiveTab] = useState('team'); // 'team' | 'hitl'
   
@@ -265,11 +266,13 @@ export default function AdminPanel({ user, health, onLogout, onNavigate }) {
 
   const loadAnalysts = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const data = await api.getAnalysts();
-      setAnalysts(data || []);
+      setAnalysts(Array.isArray(data) ? data : []);
     } catch (e) {
-      console.warn('Failed to load analysts', e);
+      console.error('Failed to load analysts', e);
+      setLoadError(e?.response?.data?.detail || e?.message || 'Erreur inconnue');
     } finally {
       setLoading(false);
     }
@@ -380,6 +383,19 @@ export default function AdminPanel({ user, health, onLogout, onNavigate }) {
               {loading ? (
                 <div className="flex items-center justify-center py-20">
                   <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent"></div>
+                </div>
+              ) : loadError ? (
+                <div className="card bg-danger/5 border border-danger/20 p-8 text-center rounded-xl">
+                  <AlertCircle className="w-10 h-10 text-danger mx-auto mb-3" />
+                  <p className="text-sm font-bold text-danger mb-1">Impossible de charger les analystes</p>
+                  <p className="text-xs text-content-muted mb-4">{loadError}</p>
+                  <button onClick={loadAnalysts} className="btn-primary text-sm">Réessayer</button>
+                </div>
+              ) : analysts.length === 0 ? (
+                <div className="card bg-white p-12 text-center rounded-xl">
+                  <Users className="w-10 h-10 text-content-muted mx-auto mb-4" />
+                  <p className="text-sm font-bold text-content mb-1">Aucun analyste trouvé</p>
+                  <p className="text-xs text-content-muted">Aucun compte analyste n'est encore enregistré dans le système.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

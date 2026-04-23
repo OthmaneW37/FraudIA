@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+﻿import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ShieldCheck,
@@ -85,7 +85,6 @@ const App = () => {
     kyc_verified: true,
     otp_used: true,
     is_new_city: 0,
-<<<<<<< HEAD
     hour: 14,
     txn_count_24h: 2,
     txn_sum_24h: 1500,
@@ -98,14 +97,6 @@ const App = () => {
     city: "Dhaka",
     country: "Bangladesh",
     currency: "BDT",
-=======
-    
-    // ── Détails & Métadonnées (Contexte uniquement - Secondaire) ──────────
-    avg_amount_30d: 220,
-    city: "Casablanca",
-    country: "Maroc",
-    currency: "MAD",
->>>>>>> 2c965fa (Correction bugs + Ajout fonctionnalités)
     device_type: "mobile",
     operating_system: "Android",
     browser: "Chrome",
@@ -213,6 +204,7 @@ const App = () => {
               result_data: shapData,
             });
             savedRowId = saveResp.id;
+            setSelectedTx(prev => ({ ...prev, dbId: savedRowId, annotation: null }));
             reloadTransactions();
           } catch (e) { console.warn('Save tx failed', e); }
         }
@@ -480,11 +472,17 @@ const App = () => {
   // ── Annotation update ──
   const updateAnnotation = useCallback(async (tx, annotation) => {
     if (!tx?.dbId) return;
+    // Mise à jour optimiste immédiate de la liste (pas de race condition)
+    setUserTransactions(prev => prev.map(t => t.id === tx.dbId ? { ...t, annotation } : t));
     try {
       await api.updateTransaction(tx.dbId, { annotation });
-      await reloadTransactions();
+      // Confirmer depuis la DB
+      const txs = await api.getTransactions();
+      setUserTransactions(txs);
     } catch (e) {
       console.warn('Annotation update failed', e);
+      // Annuler la mise à jour optimiste en cas d'erreur
+      reloadTransactions();
     }
   }, [reloadTransactions]);
 
