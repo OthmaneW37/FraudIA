@@ -1,127 +1,147 @@
-# Système Basé sur un Agent IA pour la Détection d'Anomalies Financières
+# FraudIA - Systeme de Detection de Fraude Financiere par IA
 
-> **Projet de Fin d'Année (PFA) — EMSI 4ème année IA & Data**  
-> Othmane & Ramzi · 2024–2025
-
----
-
-##  Objectif
-
-Système hybride de détection de fraude financière qui :
-1. **Détecte** les transactions suspectes (ML/DL)
-2. **Explique** en langage naturel pourquoi (XAI + LLM)
-3. **Minimise** les faux positifs
-4. **Résout** le problème de la boîte noire des modèles ML
+> Projet de Fin d'Annee (PFA) - EMSI 4eme annee IA & Data  
+> Othmane Moussawi & Rayane Ramzi - 2024-2025
 
 ---
 
-##  Architecture — 4 Piliers
+## Objectif
 
-| Pilier | Technologie | Rôle |
-|--------|-------------|------|
-| Détection ML | XGBoost + Isolation Forest | Score d'anomalie |
-| XAI | SHAP TreeExplainer | Poids des features |
-| Agent LLM | LangChain + Ollama (local) | Explication NL |
-| Déploiement | FastAPI + Streamlit | API + Dashboard |
-
----
-
-##  Structure du projet
-
-```
-code/
-├── data/
-│   ├── raw/            # Dataset original (ignoré par git)
-│   └── processed/      # Features engineered
-├── notebooks/
-│   ├── 00_EDA.ipynb
-│   ├── 01_baseline_models.ipynb
-│   ├── 02_advanced_models.ipynb
-│   └── 03_xai_agent.ipynb
-├── src/
-│   ├── data/           # Chargement + preprocessing
-│   ├── models/         # Entraînement + évaluation
-│   ├── xai/            # SHAP wrapper
-│   └── agent/          # LLM + prompts
-├── api/                # FastAPI backend
-├── dashboard/          # Streamlit frontend
-├── models/             # Modèles sauvegardés (ignoré par git)
-└── tests/
-```
+Systeme hybride de detection de fraude financiere qui :
+1. Detecte les transactions suspectes (XGBoost, RF, LR, Voting Ensemble)
+2. Explique en langage naturel pourquoi (SHAP + LLM Perplexity/Ollama)
+3. Minimise les faux positifs via calibration F0.5 des seuils
+4. Apprend des retours humains (Human-in-the-Loop incremental)
 
 ---
 
-##  Installation
+## Installation
 
-### 1. Pré-requis
+### Pre-requis
 - Python 3.11+
-- [Ollama](https://ollama.ai) installé et lancé localement
-- 8 GB RAM minimum (16 GB recommandé)
+- Node.js 18+
+- [Ollama](https://ollama.ai) (optionnel, pour le LLM local)
 
-### 2. Environnement virtuel
-```bash
+### Backend
+`
 python -m venv venv
-venv\Scripts\activate          # Windows
+venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-```
+`
 
-### 3. Configuration Ollama
-```bash
-ollama pull mistral             # Télécharger le modèle LLM
-ollama serve                    # Lancer le serveur (port 11434)
-```
+### Frontend
+`
+cd frontend
+npm install
+`
 
-### 4. Variables d'environnement
-```bash
+### Configuration
+`
 copy .env.example .env
-# Éditer .env si besoin
-```
+`
 
-### 5. Placer le dataset
-```bash
-# Copier improved_fraud_dataset.csv dans :
-data/raw/improved_fraud_dataset.csv
-```
+### Dataset
+Placer le fichier improved_fraud_dataset.csv dans data/raw/
 
 ---
 
-##  Roadmap
+## Entrainement des modeles (OBLIGATOIRE)
 
-- [ ] Phase 0 : Setup & Scaffolding
-- [ ] Phase 0 : EDA (Exploratory Data Analysis)
-- [ ] Phase 1 : Baselines ML (LR, RF, XGBoost)
-- [ ] Phase 2 : XAI (SHAP) + Agent LLM
-- [ ] Phase 3 : API FastAPI + Dashboard Streamlit
+Les modeles ne sont PAS inclus dans le repo (.gitignore).
 
----
+`
+venv\Scripts\python.exe train.py --n-trials 50
+`
 
-##  Dataset
+Options:
+- --skip-optuna : parametres par defaut (plus rapide)
+- --n-features 20 : garder les 20 features les plus importantes
+- --no-ensemble : ne pas creer le VotingClassifier
 
-| Propriété | Valeur |
-|-----------|--------|
-| Fichier | `improved_fraud_dataset.csv` |
-| Volume | 1 000 000 transactions |
-| Taille | ~187 MB |
-| Label | `is_fraud` (binaire, déséquilibré < 1%) |
-| Features | montant, heure, type, KYC, OTP, device, merchant, localisation... |
+Genere dans models/ : preprocessor.joblib, xgboost.joblib, random_forest.joblib, logistic_regression.joblib, ensemble.joblib, thresholds.json, metrics.json
 
 ---
 
-##  Métriques de référence
+## Lancement
 
->  **L'Accuracy n'est JAMAIS utilisée** (dataset déséquilibré)
+### API Backend (port 8000)
+`
+venv\Scripts\python.exe -m uvicorn api.main:app --reload
+`
+Swagger: http://localhost:8000/docs
 
-- **F1-Score** (compromis précision/rappel)
-- **AUC-PR** (Area Under Precision-Recall Curve)
-- **Recall** (minimiser les faux négatifs = frauds manquées)
+### Frontend (port 5173)
+`
+cd frontend
+npm run dev
+`
 
 ---
 
-##  Stack technique
+## Comptes par defaut
 
-```
-Python 3.11 · XGBoost · scikit-learn · imbalanced-learn
-SHAP · LIME · PyTorch (Autoencoder)
-LangChain · Ollama (Mistral/LLaMA local)
-FastAPI · Pydantic v2 · Streamlit · Plotly
-```
+| Email | Mot de passe | Role |
+|---|---|---|
+| superadmin@gmail.com | password | Superadmin |
+| rayane.ramzi24@gmail.com | password | Analyste |
+| othmanemoussawi@gmail.com | password | Analyste |
+
+---
+
+## Fonctionnalites
+
+### Analyste
+- Formulaire de transaction -> score + SHAP + explication LLM
+- Upload CSV batch (max 100 transactions)
+- Historique cloisonne avec filtres (risque, modele, recherche)
+- Annotation (Fraude Confirmee / Transaction Valide)
+- Export PDF / CSV
+
+### Superadmin
+- Vue globale de toutes les transactions
+- Gestion des analystes (evaluation, notes)
+- Panneau HITL (feedbacks, fine-tuning)
+- Page analytique (risques, tendances, facteurs)
+
+### Human-in-the-Loop
+1. L'analyste annote une transaction comme frauduleuse ou valide
+2. Les donnees sont sauvegardees dans data/human_feedback.parquet
+3. Des 5 annotations, le superadmin peut declencher un fine-tuning
+4. XGBoost ajoute 50 arbres sur les exemples humains (warm-start)
+5. Le modele est recharge a chaud sans interruption
+
+---
+
+## Metriques
+
+L'Accuracy n'est jamais utilisee (dataset desequilibre <1% fraudes).
+
+- AUC-PR : metrique principale (Precision-Recall)
+- F1-Score : compromis precision/rappel
+- F0.5 : F-beta privilegiant 2x la precision (seuils de decision)
+
+Les metriques reelles sont lues depuis models/metrics.json dans le dashboard.
+
+---
+
+## Structure
+
+`
+code/
+├── api/               # Backend FastAPI (JWT, SHAP, LLM, HITL, SMTP)
+│   └── routes/        # Endpoints REST
+├── frontend/          # React SPA (Vite + TailwindCSS)
+│   └── src/components/
+├── src/               # Package ML/XAI/LLM
+│   ├── data/          # DataLoader, FraudPreprocessor (SMOTE)
+│   ├── models/        # ModelTrainer, XGBoostTuner (Optuna), evaluator
+│   ├── xai/           # FraudExplainer (SHAP wrapper)
+│   └── agent/         # FraudAgent (LLM dual Perplexity/Ollama), prompts
+├── models/            # Modeles sauvegardes (gitignored)
+├── data/              # Dataset + feedbacks (gitignored)
+├── notebooks/         # Jupyter EDA
+├── tests/             # Tests unitaires
+├── train.py           # Pipeline d'entrainement (CV + feature selection + ensemble)
+├── calibrate_thresholds.py  # Calibration F0.5 sans filtre arbitraire
+└── requirements.txt   # Dependances Python
+`

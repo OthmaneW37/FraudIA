@@ -105,7 +105,7 @@ async def root():
 
 @app.get("/health", response_model=HealthResponse, tags=["Monitoring"])
 async def health_check() -> HealthResponse:
-    """Verifie l'etat de l'API, du modele ML et du LLM."""
+    """Vérifie l'état de l'API, du modèle ML et du LLM."""
     model_loaded = model_service is not None
     llm_online = False
 
@@ -123,16 +123,32 @@ async def health_check() -> HealthResponse:
         else "unhealthy"
     )
 
-    model_metrics = {
-        "accuracy": 0.91,
-        "auc_pr": 0.31,
-        "f1_macro": 0.49,
-        "precision_fraud": 0.30,
-        "recall_fraud": 0.50,
-        "version": "v2.1 (seuils calibres + features sequentielles)",
-        "training_samples": 700000,
-        "n_features": 27,
-    } if model_loaded else None
+    # Charger les métriques réelles depuis models/metrics.json
+    import json
+    from pathlib import Path
+    metrics_path = Path(__file__).resolve().parent.parent / "models" / "metrics.json"
+    try:
+        with metrics_path.open("r", encoding="utf-8") as f:
+            saved = json.load(f)
+        model_metrics = {
+            "auc_pr": saved.get("auc_pr", 0),
+            "f1": saved.get("f1", 0),
+            "precision_fraud": saved.get("precision_fraud", 0),
+            "recall_fraud": saved.get("recall_fraud", 0),
+            "n_features": saved.get("n_features", 27),
+            "training_samples": saved.get("training_samples", 0),
+            "best_model": saved.get("best_model", "xgboost"),
+        }
+    except Exception:
+        model_metrics = None if not model_loaded else {
+            "auc_pr": 0,
+            "f1": 0,
+            "precision_fraud": 0,
+            "recall_fraud": 0,
+            "n_features": 27,
+            "training_samples": 0,
+            "best_model": "xgboost",
+        }
 
     return HealthResponse(
         status=overall_status,

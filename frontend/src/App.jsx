@@ -33,7 +33,7 @@ import {
   Trash2
 } from 'lucide-react';
 
-import { api } from './api/client';
+import { api, setOnUnauthorized } from './api/client';
 import Form from './components/Form';
 import ResultsPanel from './components/ResultsPanel';
 import LoginPage from './components/LoginPage';
@@ -111,6 +111,12 @@ const App = () => {
 
   // ── Auth handlers ──
   const handleLogin = useCallback((data) => {
+    setUserTransactions([]);
+    setResult(null);
+    setError(null);
+    setIsLoading(false);
+    setSelectedTx(null);
+    setBatchResults(null);
     setUser(data.user);
     setActivePage('dashboard');
   }, []);
@@ -119,9 +125,19 @@ const App = () => {
     api.logout();
     setUser(null);
     setUserTransactions([]);
-    setActivePage('landing');
     setResult(null);
+    setError(null);
+    setIsLoading(false);
+    setSelectedTx(null);
+    setBatchResults(null);
+    setLlmLoading(false);
+    setActivePage('landing');
   }, []);
+
+  // Brancher le callback 401 à handleLogout (nettoyage propre sans reload)
+  useEffect(() => {
+    setOnUnauthorized(handleLogout);
+  }, [handleLogout]);
 
   // Load user transactions when user is set and on dashboard
   useEffect(() => {

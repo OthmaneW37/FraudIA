@@ -93,15 +93,17 @@ def put_transaction(row_id: str, data: dict = Body(...), user: dict = Depends(ge
             conn.close()
             if row:
                 from api.hitl import extract_feedback_from_annotation
-                extract_feedback_from_annotation(
+                success = extract_feedback_from_annotation(
                     db_row=dict(row),
                     annotation=annotation,
                     analyst_id=user["id"],
                 )
+                if not success:
+                    logger.warning(f"[HITL] Feedback non enregistré pour {row.get('transaction_id', row_id)} — form_data invalide ou absent")
+            else:
+                logger.warning(f"[HITL] Transaction {row_id} introuvable en base")
         except Exception as exc:
-            # Ne pas bloquer la réponse si le HITL échoue
-            from loguru import logger
-            logger.warning(f"[HITL] Erreur d'enregistrement du feedback : {exc}")
+            logger.error(f"[HITL] Erreur critique d'enregistrement du feedback : {exc}", exc_info=True)
     
     return {"status": "updated"}
 

@@ -141,6 +141,15 @@ def init_db() -> None:
             conn.commit()
             logger.info("Migration : colonne 'annotation' ajoutee a transactions")
 
+        # Migrations : ajouter rating et admin_comment aux users
+        try:
+            conn.execute("SELECT rating FROM users LIMIT 1")
+        except sqlite3.OperationalError:
+            conn.execute("ALTER TABLE users ADD COLUMN rating REAL DEFAULT NULL")
+            conn.execute("ALTER TABLE users ADD COLUMN admin_comment TEXT DEFAULT NULL")
+            conn.commit()
+            logger.info("Migration : colonnes 'rating' et 'admin_comment' ajoutees a users")
+
         logger.success("Base de donnees auth initialisee")
     finally:
         conn.close()

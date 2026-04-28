@@ -1,19 +1,15 @@
 """
-calibrate_thresholds.py — Calibration des seuils de décision par modèle.
+calibrate_thresholds.py — Calibration des seuils de décision F0.5 par modèle.
 
 Objectif :
-  Trouver pour chaque modèle le seuil qui donne un bon équilibre entre
-  précision et rappel sur le val set, et sauvegarder dans models/thresholds.json.
-
-Stratégie : seuil F1-beta (beta=0.5 → pénalise plus les FP que les FN)
-  Dans la fraude bancaire, un faux positif (blocage légitime) est aussi
-  coûteux qu'un faux négatif (fraude manquée) → beta=0.5 privilégie la précision.
+  Trouver pour chaque modèle le seuil F0.5 qui donne le meilleur compromis
+  précision/rappel sans filtre arbitraire. F0.5 = précision 2x plus importante
+  que le rappel.
 """
 
 import sys
 import json
 import numpy as np
-import pandas as pd
 from pathlib import Path
 from sklearn.metrics import fbeta_score, precision_recall_curve
 
@@ -52,34 +48,38 @@ def calibrate():
 
         precisions, recalls, thresh_vals = precision_recall_curve(y_val, y_prob)
 
-        # Calcul F0.5 pour chaque seuil (privilégie la précision sur le rappel)
+        # Maximiser F0.5 sur tous les seuils sans filtre arbitraire
         best_threshold = 0.5
         best_f05 = 0.0
+        best_precision = 0.0
+        best_recall = 0.0
 
         for i, t in enumerate(thresh_vals):
-            if precisions[i] < 0.50:   # Précision minimale acceptable : 50%
-                continue
             y_pred = (y_prob >= t).astype(int)
             f05 = fbeta_score(y_val, y_pred, beta=0.5, zero_division=0)
             if f05 > best_f05:
                 best_f05 = f05
                 best_threshold = float(t)
+                # Mémoriser précision/rappel à ce seuil
+                tp = ((y_pred == 1) & (y_val == 1)).sum()
+                fp = ((y_pred == 1) & (y_val == 0)).sum()
+                fn = ((y_pred == 0) & (y_val == 1)).sum()
+                best_precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+                best_recall = tp / (tp + fn) if (tp + fn) > 0 else 0
 
-        # Stats à ce seuil
+        # Stats
         y_pred_final = (y_prob >= best_threshold).astype(int)
         n_flagged = y_pred_final.sum()
         tp = ((y_pred_final == 1) & (y_val == 1)).sum()
         fp = ((y_pred_final == 1) & (y_val == 0)).sum()
-        precision_at = tp / (tp + fp) if (tp + fp) > 0 else 0
-        recall_at = tp / y_val.sum() if y_val.sum() > 0 else 0
 
-        # Distribution des scores (pour info)
         p10, p25, p50, p75, p90 = np.percentile(y_prob, [10, 25, 50, 75, 90])
 
         print(f"\n  [{name}]")
         print(f"    Seuil optimal F0.5   : {best_threshold:.4f}")
-        print(f"    Précision            : {precision_at:.1%}")
-        print(f"    Rappel               : {recall_at:.1%}")
+        print(f"    F0.5 score           : {best_f05:.4f}")
+        print(f"    Précision            : {best_precision:.1%}")
+        print(f"    Rappel               : {best_recall:.1%}")
         print(f"    Transactions flaggées: {n_flagged:,} / {len(y_val):,}")
         print(f"    Scores (p10/p50/p90) : {p10:.3f} / {p50:.3f} / {p90:.3f}")
 

@@ -18,14 +18,25 @@ client.interceptors.request.use((config) => {
   return config;
 });
 
-// Si le token expire (401), déconnecter
+// Callback optionnel appelé lors d'un 401 (déconnexion propre)
+let onUnauthorized = null;
+
+export const setOnUnauthorized = (callback) => {
+  onUnauthorized = callback;
+};
+
+// Si le token expire (401), déconnecter proprement au lieu de recharger
 client.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401 && localStorage.getItem('fraudia_token')) {
       localStorage.removeItem('fraudia_token');
       localStorage.removeItem('fraudia_user');
-      window.location.reload();
+      if (onUnauthorized) {
+        onUnauthorized();
+      } else {
+        window.location.reload();
+      }
     }
     return Promise.reject(error);
   }

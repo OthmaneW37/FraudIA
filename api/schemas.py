@@ -127,6 +127,7 @@ class ShapFeature(BaseModel):
 
 class PredictionResponse(BaseModel):
     """Réponse de l'endpoint /predict."""
+    model_config = {"protected_namespaces": ()}
     transaction_id:   str
     fraud_probability: float = Field(..., ge=0.0, le=1.0, description="Score de fraude [0, 1]")
     is_fraud:         bool
@@ -138,6 +139,7 @@ class PredictionResponse(BaseModel):
 
 class ExplanationResponse(BaseModel):
     """Réponse de l'endpoint /explain — inclut score + explication LLM + SHAP."""
+    model_config = {"protected_namespaces": ()}
     transaction_id:    str
     fraud_probability: float
     is_fraud:          bool
@@ -151,9 +153,9 @@ class ExplanationResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     """Réponse de l'endpoint /health avec métriques du modèle."""
+    model_config = {"protected_namespaces": ()}
     status:       str   # "healthy" | "degraded" | "unhealthy"
     model_loaded: bool
     llm_online:   bool
     version:      str = "2.0.0"
-    # Métriques de performance du modèle (affichées sur le dashboard)
     model_metrics: Optional[Dict] = Field(default=None, description="Métriques de performance XGBoost")

@@ -37,6 +37,38 @@ DB_PATH = PROJECT_ROOT / "users.db"
 # Nombre minimum de feedbacks pour déclencher un retrain
 MIN_FEEDBACK_FOR_RETRAIN = 5
 
+# Valeurs par défaut pour les colonnes manquantes lors du retrain HITL
+_COLUMN_DEFAULTS: Dict[str, Any] = {
+    # Numériques
+    "transaction_amount": 1000.0, "user_account_age_days": 1006.0,
+    "fee_amount": 27.76, "day_of_week": 1, "hour": 14.0, "minute": 0.0,
+    "avg_amount_30d": 1000.0, "time_since_last_txn": 480.0,
+    "txn_count_24h": 2.0, "txn_sum_24h": 2000.0, "is_new_city": 0,
+    "is_weekend": 0, "age_group": 2,
+    "ip_country_match": 1, "device_change_count": 1,
+    "kyc_verified": 1, "otp_used": 1, "month": 6, "year": 2023,
+    # Catégorielles
+    "operating_system": "Windows", "browser": "Chrome",
+    "payment_method": "bkash", "card_type": "debit",
+    "merchant_category": "grocery", "transaction_type": "purchase",
+    "device_type": "mobile", "country": "Bangladesh", "currency": "BDT",
+    "city": "Dhaka", "gender": "Male", "account_type": "Personal",
+}
+
+
+def _pad_missing_columns(df: pd.DataFrame, expected_cols: List[str]) -> None:
+    """
+    Ajoute les colonnes manquantes au DataFrame avec des valeurs par défaut.
+    Modifie le DataFrame en place.
+    """
+    for col in expected_cols:
+        if col not in df.columns:
+            df[col] = _COLUMN_DEFAULTS.get(col, 0)
+    # Supprimer les colonnes en trop qui n'intéressent pas le preprocessor
+    extra = [c for c in df.columns if c not in expected_cols]
+    if extra:
+        df.drop(columns=extra, inplace=True)
+
 
 def _get_db() -> sqlite3.Connection:
     conn = sqlite3.connect(str(DB_PATH))
@@ -176,6 +208,14 @@ def incremental_retrain(
             "success": False,
             "message": "Les feedbacks doivent contenir les deux classes (fraude et valide) pour un retrain utile.",
         }
+
+    # ── 2b. Reconstruire les colonnes manquantes ─────────────────────────────
+    # Le form_data sauvegardé (~20 colonnes) est incomplet par rapport aux
+    # ~60 colonnes sur lesquelles le preprocessor a été entraîné.
+    # On ajoute les colonnes manquantes avec des valeurs par défaut.
+    expected_cols = preprocessor.expected_features
+    _pad_missing_columns(X_feedback_raw, expected_cols)
+    logger.info(f"[HITL] Features reconstruites: {len(X_feedback_raw.columns)} colonnes")
 
     # Appliquer le même préprocesseur que le modèle original
     try:

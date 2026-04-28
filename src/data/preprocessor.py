@@ -28,13 +28,15 @@ from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OrdinalEncoder, StandardScaler
 
+pd.set_option("future.no_silent_downcasting", True)
+
 
 # ── Constantes ──────────────────────────────────────────────────────────────
 
 RANDOM_STATE = 42
-SMOTE_SAMPLING_STRATEGY = 0.4   # Ratio souhaité minorité/majorité après SMOTE
-                                  # 0.4 = 40% de fraudes par rapport aux légitimes
-                                  # Le dataset brut a déjà ~9% de fraudes. (Ratio plus agressif)
+SMOTE_SAMPLING_STRATEGY = 0.15  # Ratio souhaité minorité/majorité après SMOTE
+                                    # 0.15 = 15% de fraudes par rapport aux légitimes
+                                    # Évite le surapprentissage sur données synthétiques
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 MODELS_DIR = PROJECT_ROOT / "models"
@@ -106,7 +108,7 @@ class FraudPreprocessor:
 
         # 1. Ratio Montant / Moyenne (Très puissant pour la fraude)
         # Si avg_amount_30d n'existe pas, on met 1.0 (on ne peut pas diviser par 0)
-        avg = df.get("avg_amount_30d", df.get("transaction_amount", 1.0)).fillna(df["transaction_amount"])
+        avg = df.get("avg_amount_30d", df.get("transaction_amount", 1.0)).fillna(df["transaction_amount"]).infer_objects(copy=False)
         df["amount_ratio"] = df["transaction_amount"] / (avg + 1e-9)
 
         # 1.b Compatibilité avec les modèles déjà entraînés : transformation log du montant.
@@ -216,6 +218,15 @@ class FraudPreprocessor:
     def feature_names(self) -> List[str]:
         """Noms des features après transformation (utile pour SHAP)."""
         return self._feature_names_out
+
+    @property
+    def expected_features(self) -> List[str]:
+        """Colonnes d'entrée attendues par le ColumnTransformer (après feature engineering)."""
+        cols: List[str] = []
+        for name, trans, cols_list in self._preprocessor.transformers_:
+            if name != "remainder":
+                cols.extend(cols_list)
+        return cols
 
     def _get_feature_names(self) -> List[str]:
         """Reconstruit les noms de colonnes après ColumnTransformer."""
