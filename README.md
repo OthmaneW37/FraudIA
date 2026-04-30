@@ -1,4 +1,4 @@
-# FraudIA - Systeme de Detection de Fraude Financiere par IA
+﻿# FraudIA - Systeme de Detection de Fraude Financiere par IA
 
 > Projet de Fin d'Annee (PFA) - EMSI 4eme annee IA & Data  
 > Othmane Moussawi & Rayane Ramzi - 2024-2025
@@ -15,6 +15,21 @@ Systeme hybride de detection de fraude financiere qui :
 
 ---
 
+## Diagrammes du projet
+
+Voir le dossier ` + "`diagrams/`" + @` pour les diagrammes UML au format Mermaid :
+
+| Diagramme | Fichier |
+|---|---|
+| Architecture du systeme | ` + "`01-architecture-systeme.mmd`" + @` |
+| Sequence — Analyse transaction | ` + "`02-sequence-analyse.mmd`" + @` |
+| Cas d'utilisation | ` + "`03-use-cases.mmd`" + @` |
+| Classes — Pipeline ML | ` + "`04-classes-ml.mmd`" + @` |
+| Deploiement | ` + "`05-deploiement.mmd`" + @` |
+| Flux de donnees | ` + "`06-flux-donnees.mmd`" + @` |
+
+---
+
 ## Installation
 
 ### Pre-requis
@@ -23,22 +38,22 @@ Systeme hybride de detection de fraude financiere qui :
 - [Ollama](https://ollama.ai) (optionnel, pour le LLM local)
 
 ### Backend
-`
+` + "`" + @`
 python -m venv venv
 venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-`
+` + "`" + @`
 
 ### Frontend
-`
+` + "`" + @`
 cd frontend
 npm install
-`
+` + "`" + @`
 
 ### Configuration
-`
+` + "`" + @`
 copy .env.example .env
-`
+` + "`" + @`
 
 ### Dataset
 Placer le fichier improved_fraud_dataset.csv dans data/raw/
@@ -49,9 +64,9 @@ Placer le fichier improved_fraud_dataset.csv dans data/raw/
 
 Les modeles ne sont PAS inclus dans le repo (.gitignore).
 
-`
+` + "`" + @`
 venv\Scripts\python.exe train.py --n-trials 50
-`
+` + "`" + @`
 
 Options:
 - --skip-optuna : parametres par defaut (plus rapide)
@@ -65,16 +80,16 @@ Genere dans models/ : preprocessor.joblib, xgboost.joblib, random_forest.joblib,
 ## Lancement
 
 ### API Backend (port 8000)
-`
+` + "`" + @`
 venv\Scripts\python.exe -m uvicorn api.main:app --reload
-`
+` + "`" + @`
 Swagger: http://localhost:8000/docs
 
 ### Frontend (port 5173)
-`
+` + "`" + @`
 cd frontend
 npm run dev
-`
+` + "`" + @`
 
 ---
 
@@ -126,7 +141,7 @@ Les metriques reelles sont lues depuis models/metrics.json dans le dashboard.
 
 ## Structure
 
-`
+` + "`" + @`
 code/
 ├── api/               # Backend FastAPI (JWT, SHAP, LLM, HITL, SMTP)
 │   └── routes/        # Endpoints REST
@@ -137,6 +152,7 @@ code/
 │   ├── models/        # ModelTrainer, XGBoostTuner (Optuna), evaluator
 │   ├── xai/           # FraudExplainer (SHAP wrapper)
 │   └── agent/         # FraudAgent (LLM dual Perplexity/Ollama), prompts
+├── diagrams/          # Diagrammes UML Mermaid
 ├── models/            # Modeles sauvegardes (gitignored)
 ├── data/              # Dataset + feedbacks (gitignored)
 ├── notebooks/         # Jupyter EDA
@@ -144,4 +160,4 @@ code/
 ├── train.py           # Pipeline d'entrainement (CV + feature selection + ensemble)
 ├── calibrate_thresholds.py  # Calibration F0.5 sans filtre arbitraire
 └── requirements.txt   # Dependances Python
-`
+` + "`" + @`

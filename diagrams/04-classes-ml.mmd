@@ -1,0 +1,85 @@
+﻿classDiagram
+    class DataLoader {
+        +load() DataFrame
+        +get_splits(df) Tuple
+        +add_sequential_features(df) DataFrame
+    }
+
+    class FraudPreprocessor {
+        +fit_transform_train(X, y) Tuple
+        +transform(X) ndarray
+        +save(path)
+        +load(path) FraudPreprocessor
+        +feature_names List~str~
+    }
+
+    class ModelTrainer {
+        +fit(X_train, y_train, X_val, y_val) ModelTrainer
+        +predict(X) ndarray
+        +predict_proba(X) ndarray
+        +save(path) Path
+        +load(path, model_name) ModelTrainer
+    }
+
+    class XGBoostTuner {
+        +optimize(X_train, y_train, X_val, y_val, n_trials)
+        +train_final_model(X_train, y_train, X_val, y_val) ModelTrainer
+        +get_best_model() ModelTrainer
+    }
+
+    class ModelEvaluator {
+        +evaluate(y_true, y_proba, model_name) dict
+        +find_best_threshold(y_true, y_proba) float
+        +plot_precision_recall_curve(...) Figure
+    }
+
+    class FraudExplainer {
+        +explain_instance(x) dict
+        +get_top_features(shap_dict, n) List~dict~
+        +plot_waterfall(...) Figure
+    }
+
+    class FraudAgent {
+        +explain(transaction, fraud_probability, top_features) str
+        +health_check() bool
+        -_explain_perplexity(payload) str
+        -_explain_ollama(payload) str
+        -_rule_based_fallback(...) str
+    }
+
+    class ModelService {
+        +predict(transaction, model_name) dict
+        +_prepare_transaction(tx) DataFrame
+        +_calibrate_probability(proba, threshold) float
+    }
+
+    class FullService {
+        +predict_and_shap(transaction, model_name) dict
+        +predict_and_explain(transaction, model_name) dict
+        +generate_explanation(...) str
+    }
+
+    class FraudPreprocessor {
+        <<sklearn ColumnTransformer>>
+        +numerical_features
+        +categorical_features
+        +_build_preprocessor()
+        +_apply_feature_engineering(df)
+    }
+
+    class hitl {
+        +save_feedback(tx_id, form_data, true_label, analyst_id) bool
+        +incremental_retrain(model_name, app_state) dict
+        +get_hitl_stats() dict
+        +get_pending_feedback() DataFrame
+    }
+
+    DataLoader --> FraudPreprocessor : fournit données brutes
+    FraudPreprocessor --> ModelTrainer : données préparées
+    ModelTrainer --> ModelEvaluator : évaluation
+    XGBoostTuner --> ModelTrainer : entraînement optimisé
+    ModelTrainer --> FraudExplainer : modèle entraîné
+    ModelTrainer --> ModelService : chargé
+    FraudExplainer --> FullService : SHAP values
+    FraudAgent --> FullService : explications LLM
+    hitl --> ModelTrainer : warm-start retrain

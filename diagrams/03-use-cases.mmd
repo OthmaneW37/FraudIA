@@ -1,0 +1,48 @@
+﻿graph LR
+    subgraph Systeme["Système FraudIA"]
+        direction TB
+        
+        subgraph Analyste["👤 Analyste"]
+            A1[Se connecter]
+            A2[Saisir transaction]
+            A3[Visualiser score SHAP]
+            A4[Lire explication LLM]
+            A5[Annoter transaction]
+            A6[Exporter rapport PDF/CSV]
+            A7[Upload batch CSV]
+            A8[Consulter historique]
+        end
+        
+        subgraph Superadmin["👑 Superadmin"]
+            S1[Gérer analystes]
+            S2[Évaluer performances]
+            S3[Vue globale transactions]
+            S4[Consulter analytics]
+            S5[Déclencher HITL retrain]
+            S6[Consulter historique HITL]
+        end
+    end
+
+    %% Relations use-case
+    Analyste -->|include| A2
+    Analyste -->|include| A3
+    Analyste -->|include| A4
+    A3 -->|extend| A4
+    Analyste -->|include| A5
+    Analyste -->|include| A6
+    Analyste -->|include| A7
+    Analyste -->|include| A8
+    
+    Superadmin -->|include| S1
+    Superadmin -->|include| S2
+    Superadmin -->|include| S3
+    Superadmin -->|include| S4
+    Superadmin -->|include| S5
+    Superadmin -->|include| S6
+    
+    %% Héritage
+    Superadmin -.->|généralise| Analyste
+    
+    %% Système externe
+    SMTP[(SMTP Brevo)]
+    A2 -.->|alerte si fraude| SMTP

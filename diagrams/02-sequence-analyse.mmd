@@ -1,0 +1,76 @@
+﻿sequenceDiagram
+    autonumber
+    actor Analyste
+    participant Frontend as React Dashboard
+    participant API as FastAPI
+    participant ML as ModelService
+    participant XAI as SHAP Explainer
+    participant LLM as FraudAgent
+    participant DB as SQLite users.db
+
+    rect rgb(240,248,255)
+        Note over Analyste,DB: Phase 1 — Authentification
+        Analyste ->> Frontend: Email + Password
+        Frontend ->> API: POST /auth/login
+        API ->> DB: Vérifier credentials
+        DB -->> API: Utilisateur + role
+        API -->> Frontend: JWT token + user
+        Frontend ->> Frontend: Stocker token localStorage
+    end
+
+    rect rgb(255,250,240)
+        Note over Analyste,DB: Phase 2 — Soumission Transaction
+        Analyste ->> Frontend: Remplir formulaire transaction
+        Frontend ->> API: POST /explain/shap
+        API ->> ML: predict_and_shap(tx, model="xgboost")
+        ML ->> ML: Preprocessor.transform()
+        ML ->> ML: XGBoost.predict_proba()
+        ML ->> ML: Calibration F0.5
+        ML -->> API: fraud_probability + top_features
+        API -->> Frontend: Score + SHAP (2-3s)
+        Frontend ->> Frontend: Afficher jauge risque + barres SHAP
+    end
+
+    rect rgb(240,255,240)
+        Note over Analyste,DB: Phase 3 — Explication LLM
+        Frontend ->> API: POST /explain/llm
+        API ->> LLM: explain(transaction, shap_features)
+        LLM ->> LLM: Construction prompt
+        alt Perplexity disponible
+            LLM ->> LLM: Appel API Perplexity
+        else Fallback Ollama
+            LLM ->> LLM: Appel Ollama local
+        else Fallback règles
+            LLM ->> LLM: Template statique
+        end
+        LLM -->> API: Rapport NL (15-60s)
+        API -->> Frontend: Explication complète
+        Frontend ->> Frontend: Afficher synthèse IA
+    end
+
+    rect rgb(255,240,245)
+        Note over Analyste,DB: Phase 4 — Sauvegarde & Annotation
+        Frontend ->> API: POST /auth/transactions
+        API ->> DB: INSERT transaction + résultats
+        DB -->> API: OK
+        API -->> Frontend: Transaction sauvegardée
+        Analyste ->> Frontend: Annoter "Fraude Confirmée"
+        Frontend ->> API: PUT /auth/transactions/{id}
+        API ->> API: HITL save_feedback()
+        API ->> DB: UPDATE annotation
+        API ->> DB: INSERT human_feedback.parquet
+    end
+
+    rect rgb(245,245,255)
+        Note over Analyste,DB: Phase 5 — Fine-tuning HITL (Superadmin)
+        actor Superadmin
+        Superadmin ->> Frontend: Panneau IA Learning
+        Frontend ->> API: GET /hitl/status
+        API -->> Frontend: 5 feedbacks en attente
+        Superadmin ->> Frontend: Lancer fine-tuning
+        Frontend ->> API: POST /hitl/retrain
+        API ->> ML: XGBoost warm-start +50 arbres
+        ML ->> ML: Sauvegarder modèle mis à jour
+        ML -->> API: Modèle rechargé à chaud
+        API -->> Frontend: Fine-tuning réussi
+    end

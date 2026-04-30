@@ -1,0 +1,91 @@
+﻿graph TB
+    subgraph Client["🖥️ Client (React Vite)"]
+        UI[Dashboard Analyste]
+        ADMIN[Dashboard Superadmin]
+        FORM[Formulaire Transaction]
+    end
+
+    subgraph API["⚡ Backend (FastAPI)"]
+        AUTH[JWT Auth + SQLite]
+        ROUTES[Endpoints REST]
+        PREDICT[/predict/]
+        EXPLAIN[/explain/]
+        BATCH[/batch/upload/]
+        HITL[/hitl/retrain/]
+    end
+
+    subgraph Services["🔧 Services"]
+        MS[ModelService]
+        FS[FullService]
+        NOTIFY[Notifications SMTP]
+    end
+
+    subgraph ML["🧠 Pipeline ML"]
+        PP[Preprocessor<br/>SMOTE + ColumnTransformer]
+        XGB[XGBoost]
+        RF[Random Forest]
+        LR[Logistic Regression]
+        ENS[Ensemble<br/>Soft Voting]
+    end
+
+    subgraph XAI["🔍 Explicabilité"]
+        SHAP[SHAP TreeExplainer]
+        FEAT[Top Features]
+    end
+
+    subgraph LLM["🤖 Agent IA"]
+        OLLAMA[Ollama Local<br/>Mistral]
+        PERP[Perplexity API<br/>Sonar]
+        PROMPT[Prompt Templates]
+    end
+
+    subgraph Data["💾 Données"]
+        CSV[data/raw/*.csv]
+        FB[data/human_feedback.parquet]
+        DB[(users.db<br/>SQLite)]
+        MODELS[models/*.joblib]
+    end
+
+    UI --> ROUTES
+    ADMIN --> ROUTES
+    FORM --> ROUTES
+
+    ROUTES --> AUTH
+    ROUTES --> PREDICT
+    ROUTES --> EXPLAIN
+    ROUTES --> BATCH
+    ROUTES --> HITL
+
+    PREDICT --> MS
+    EXPLAIN --> FS
+    BATCH --> FS
+    HITL --> ML
+
+    MS --> PP
+    MS --> XGB
+    MS --> RF
+    MS --> LR
+    MS --> ENS
+
+    FS --> MS
+    FS --> SHAP
+    FS --> LLM
+
+    SHAP --> FEAT
+    FEAT --> LLM
+
+    LLM --> PROMPT
+    PROMPT --> OLLAMA
+    PROMPT --> PERP
+
+    XGB --> MODELS
+    RF --> MODELS
+    LR --> MODELS
+    ENS --> MODELS
+    PP --> MODELS
+
+    CSV --> PP
+    FB --> HITL
+    AUTH --> DB
+
+    MS -.-> NOTIFY

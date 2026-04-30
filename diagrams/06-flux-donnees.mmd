@@ -1,0 +1,61 @@
+﻿graph LR
+    subgraph Input["📥 Entrées"]
+        TX["Transaction brute<br/>{montant, heure, KYC, OTP...}"]
+        CSV["Fichier CSV<br/>Batch ≤100 tx"]
+        FB["Feedbacks humains<br/>{tx_id, label, analyste}"]
+    end
+
+    subgraph Pipeline["🔧 Pipeline de Traitement"]
+        direction TB
+        PREP["Preprocessing<br/>Imputation + Encoding + Scaling"]
+        FEAT["Feature Engineering<br/>amount_ratio, log_amount, hour_sin/cos"]
+        SMOTE["SMOTE<br/>Oversampling 15%"]
+        PP["ColumnTransformer<br/>num + cat"]
+    end
+
+    subgraph Models["🧠 Modèles"]
+        XGB["XGBoost<br/>AUC-PR optimisé"]
+        RF["Random Forest"]
+        LR["Logistic Regression"]
+        ENS["Ensemble<br/>Soft Voting"]
+    end
+
+    subgraph Output["📤 Sorties"]
+        SCORE["Score de fraude<br/>[0, 1] calibré"]
+        SHAP["SHAP Values<br/>Top 10 features"]
+        LLM["Rapport NL<br/>Niveau + Constats + Recommandation"]
+        ALERT["Alerte SMTP<br/>Si fraude détectée"]
+        SAVE["Stockage SQLite<br/>Transaction + résultats"]
+    end
+
+    subgraph HITL["🔄 Boucle HITL"]
+        ANNOT["Annotations<br/>Fraude / Valide"]
+        RETRAIN["Warm-start<br/>+50 arbres XGBoost"]
+    end
+
+    TX --> PREP
+    CSV --> PREP
+    PREP --> FEAT
+    FEAT --> SMOTE
+    SMOTE --> PP
+    PP --> XGB
+    PP --> RF
+    PP --> LR
+    XGB --> ENS
+    RF --> ENS
+    LR --> ENS
+    
+    XGB --> SCORE
+    RF --> SCORE
+    LR --> SCORE
+    ENS --> SCORE
+    
+    SCORE --> SHAP
+    SCORE --> LLM
+    SCORE --> ALERT
+    SCORE --> SAVE
+    SHAP --> LLM
+    
+    ANNOT --> FB
+    FB --> RETRAIN
+    RETRAIN --> XGB

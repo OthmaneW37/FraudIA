@@ -1,0 +1,43 @@
+﻿graph TB
+    subgraph Dev["Machine Développement"]
+        subgraph Python["Python 3.11 + venv"]
+            API[FastAPI<br/>Port 8000]
+            ML[Pipeline ML<br/>XGBoost + SHAP]
+            DB[(SQLite<br/>users.db)]
+        end
+        
+        subgraph Node["Node.js 18+"]
+            FE[React SPA<br/>Vite + TailwindCSS<br/>Port 5173]
+        end
+        
+        subgraph LocalLLM["LLM Local (optionnel)"]
+            OLLAMA[Ollama<br/>Mistral 7B<br/>Port 11434]
+        end
+    end
+
+    subgraph Cloud["Services Cloud"]
+        PERP[Perplexity API<br/>Sonar]
+        SMTP[Brevo SMTP<br/>Alertes email]
+    end
+
+    subgraph Browser["Navigateur Analyste"]
+        UI[Dashboard FraudIA]
+    end
+
+    subgraph Data["Stockage Données"]
+        RAW[data/raw/*.csv]
+        MODELS[models/*.joblib]
+        FB[data/human_feedback.parquet]
+    end
+
+    UI -->|HTTP + JWT| FE
+    FE -->|REST API| API
+    API -->|SQL| DB
+    API -->|prédiction| ML
+    API -->|email| SMTP
+    ML -->|modèles| MODELS
+    ML -->|dataset| RAW
+    ML -->|feedbacks| FB
+    
+    API -.->|fallback| OLLAMA
+    API -.->|principal| PERP
