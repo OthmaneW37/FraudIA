@@ -139,25 +139,3 @@ Les metriques reelles sont lues depuis models/metrics.json dans le dashboard.
 
 ---
 
-## Structure
-
-` + "`" + @`
-code/
-├── api/               # Backend FastAPI (JWT, SHAP, LLM, HITL, SMTP)
-│   └── routes/        # Endpoints REST
-├── frontend/          # React SPA (Vite + TailwindCSS)
-│   └── src/components/
-├── src/               # Package ML/XAI/LLM
-│   ├── data/          # DataLoader, FraudPreprocessor (SMOTE)
-│   ├── models/        # ModelTrainer, XGBoostTuner (Optuna), evaluator
-│   ├── xai/           # FraudExplainer (SHAP wrapper)
-│   └── agent/         # FraudAgent (LLM dual Perplexity/Ollama), prompts
-├── diagrams/          # Diagrammes UML Mermaid
-├── models/            # Modeles sauvegardes (gitignored)
-├── data/              # Dataset + feedbacks (gitignored)
-├── notebooks/         # Jupyter EDA
-├── tests/             # Tests unitaires
-├── train.py           # Pipeline d'entrainement (CV + feature selection + ensemble)
-├── calibrate_thresholds.py  # Calibration F0.5 sans filtre arbitraire
-└── requirements.txt   # Dependances Python
-` + "`" + @`
