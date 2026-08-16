@@ -7,7 +7,7 @@
 
 ## Demo
 
-[![FraudIA Demo](https://img.youtube.com/vi/mv2hkPeqiZE/maxresdefault.jpg)](https://youtu.be/mv2hkPeqiZE)
+[![FraudIA Demo](https://img.youtube.com/vi/OZChGg7l0_Q/maxresdefault.jpg)](https://youtu.be/OZChGg7l0_Q)
 
 ## Objectif
 
