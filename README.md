@@ -5,6 +5,10 @@
 
 ---
 
+## Demo
+
+[![FraudIA Demo](https://img.youtube.com/vi/ADdOaZj2hvY/maxresdefault.jpg)](https://youtu.be/mv2hkPeqiZE)
+
 ## Objectif
 
 Systeme hybride de detection de fraude financiere qui :
